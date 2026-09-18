@@ -230,6 +230,63 @@ func TestApproveRequiresWebUI(t *testing.T) {
 	}
 }
 
+// TestUIShow 验证：/ui/show 触发宿主回调；未注册回调时返回 503。
+func TestUIShow(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer db.Close()
+	cipher, err := security.NewTokenCipher("test-secret")
+	if err != nil {
+		t.Fatalf("cipher: %v", err)
+	}
+	server, err := New(db, cipher, slog.Default(), "test")
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	if err := server.Listen(0); err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = server.Serve() }()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	base := "http://127.0.0.1:" + itoa(server.Port())
+
+	// 未注册 hook → 503
+	resp, err := http.Post(base+"/ui/show", "application/json", nil)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("no-hook status = %d, want 503", resp.StatusCode)
+	}
+
+	// 注册 hook → 200 且回调被调用
+	called := make(chan struct{}, 1)
+	server.SetShowUI(func() { called <- struct{}{} })
+	resp, err = http.Post(base+"/ui/show", "application/json", nil)
+	if err != nil {
+		t.Fatalf("post with hook: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("hooked status = %d, want 200", resp.StatusCode)
+	}
+	select {
+	case <-called:
+	case <-time.After(time.Second):
+		t.Fatal("showUI hook was not called")
+	}
+}
+
 func itoa(v int) string {
 	if v == 0 {
 		return "0"

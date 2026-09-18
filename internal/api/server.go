@@ -39,7 +39,12 @@ type Server struct {
 	redisService *redisops.Service
 	log          *slog.Logger
 	version      string
+	// showUI 由宿主注册：二启进程经 POST /ui/show 请求唤出本实例的窗口。
+	showUI func()
 }
+
+// SetShowUI 注册「唤出主窗口」回调（宿主在 startup 时设置）。
+func (s *Server) SetShowUI(fn func()) { s.showUI = fn }
 
 // New 创建服务并装配路由。version 用于 /healthz 身份标识（CLI 靠它确认连的是 opsbox 而不是别的本地服务）。
 func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger, version string) (*Server, error) {
@@ -48,11 +53,22 @@ func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger, version str
 	}
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
+	s := &Server{log: log, version: version}
 	// originGuard 必须先于 cors：恶意网页的跨站请求在进业务前就被拒，
 	// 而不是只靠 CORS 响应头让浏览器拦响应（简单请求服务器侧照样会执行）。
 	engine.Use(gin.Recovery(), originGuard(), cors())
 	engine.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "app": "opsbox", "version": version})
+	})
+	// 二启进程进来发现已有实例时，调这个接口唤出主窗口然后自己退出（Docker Desktop 行为）。
+	// 只暴露「显示窗口」这一无副作用动作，本机回环可达即可。
+	engine.POST("/ui/show", func(c *gin.Context) {
+		if s.showUI == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ui hook 未注册"})
+			return
+		}
+		s.showUI()
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
 	group := engine.Group("/api/v1")
@@ -69,11 +85,9 @@ func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger, version str
 	redisService.SetLogger(log)
 	redisops.NewHandler(redisService).RegisterRoutes(group)
 
-	return &Server{
-		engine: engine,
-		sshService: sshService, sqlService: sqlService, redisService: redisService,
-		log: log, version: version,
-	}, nil
+	s.engine = engine
+	s.sshService, s.sqlService, s.redisService = sshService, sqlService, redisService
+	return s, nil
 }
 
 // Listen 绑定 127.0.0.1 上从 preferred 开始的第一个可用端口。

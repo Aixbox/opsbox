@@ -81,13 +81,12 @@ func (a *App) startup(ctx context.Context) {
 	}()
 	server.RunBackground(ctx)
 	a.server = server
+	// 二启进程经 POST /ui/show 唤出窗口（Docker Desktop 行为：再点一次 exe = 弹窗口）
+	server.SetShowUI(func() { a.showWindow(ctx) })
 	a.writeDiscoveryFile(server.Port())
 	// 托盘常驻：关窗最小化后由托盘唤回；开机自启开关也挂在托盘菜单。
 	if err := tray.Start(tray.Hooks{
-		Show: func() {
-			wailsruntime.WindowUnminimise(ctx)
-			wailsruntime.WindowShow(ctx)
-		},
+		Show: func() { a.showWindow(ctx) },
 		Quit: func() {
 			a.quitting = true
 			wailsruntime.Quit(ctx)
@@ -96,6 +95,12 @@ func (a *App) startup(ctx context.Context) {
 		log.Warn("start tray", "error", err)
 	}
 	log.Info("opsbox api ready", "port", server.Port(), "dataDir", dataDir)
+}
+
+// showWindow 显示并聚焦主窗口（托盘唤回、二启唤醒共用）。
+func (a *App) showWindow(ctx context.Context) {
+	wailsruntime.WindowUnminimise(ctx)
+	wailsruntime.WindowShow(ctx)
 }
 
 // beforeClose 拦截窗口关闭：点 X = 隐藏到托盘，本地服务保持运行（CLI 可用）。
