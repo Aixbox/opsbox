@@ -171,6 +171,9 @@ func (a *App) InstallCLIs() (climgr.Status, error) { return climgr.Install() }
 // UninstallCLIs 移除已安装的 CLI 并清理 PATH 条目。
 func (a *App) UninstallCLIs() (climgr.Status, error) { return climgr.Uninstall() }
 
+// TakeOverConflicts 清理用户 PATH 中遮蔽 opsbox 命令的旧版同名 CLI（如旧平台 padmin）。
+func (a *App) TakeOverConflicts() (climgr.Status, error) { return climgr.TakeOverConflicts() }
+
 // ensureDataDir 返回（并创建）数据目录：<UserConfigDir>/opsbox。
 func ensureDataDir() (string, error) {
 	base, err := os.UserConfigDir()

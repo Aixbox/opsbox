@@ -6,6 +6,7 @@ package climgr
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -137,22 +138,94 @@ func Uninstall() (Status, error) {
 	if err := os.RemoveAll(filepath.Dir(InstallDir())); err != nil {
 		return Status{}, fmt.Errorf("删除安装目录失败: %w", err)
 	}
+	if err := removePathEntry(InstallDir()); err != nil {
+		return Status{}, fmt.Errorf("写回用户 PATH 失败: %w", err)
+	}
+	return Current(), nil
+}
+
+// TakeOverConflicts 清理用户 PATH 中遮蔽 opsbox 命令的旧版同名 CLI（如旧平台 padmin）：
+// 删除冲突目录里的三个同名 exe，目录因此清空则一并移除，并从用户 PATH 去掉该目录。
+// 只动与三个 CLI 同名的文件，目录里的其他内容不受影响。
+func TakeOverConflicts() (Status, error) {
+	conflicts := currentConflicts()
+	for _, dir := range conflicts {
+		if err := takeOverDir(dir); err != nil {
+			return Current(), fmt.Errorf("清理 %s 失败: %w", dir, err)
+		}
+		// 目录里已没有同名命令时，PATH 条目才移除；否则保留（用户可能还有别的用途）
+		if dirHasCLI(dir) {
+			continue
+		}
+		if err := removePathEntry(dir); err != nil {
+			return Current(), fmt.Errorf("更新用户 PATH 失败: %w", err)
+		}
+	}
+	return Current(), nil
+}
+
+// currentConflicts 返回当前用户 PATH 中存在同名 CLI 的其他目录（去重）。
+func currentConflicts() []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, entry := range userPathEntries() {
+		if strings.EqualFold(entry, InstallDir()) || seen[strings.ToLower(entry)] {
+			continue
+		}
+		if dirHasCLI(entry) {
+			out = append(out, entry)
+			seen[strings.ToLower(entry)] = true
+		}
+	}
+	return out
+}
+
+// dirHasCLI 判断目录里是否存在任一同名 CLI。
+func dirHasCLI(dir string) bool {
+	for _, name := range cliNames {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// takeOverDir 删除目录里的三个同名 CLI exe；目录因此变空则整个移除。
+func takeOverDir(dir string) error {
+	for _, name := range cliNames {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	rest, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if len(rest) == 0 {
+		return os.Remove(dir)
+	}
+	return nil
+}
+
+// removePathEntry 把目录从用户 PATH 中移除（幂等）。
+func removePathEntry(dir string) error {
 	entries := userPathEntries()
 	kept := make([]string, 0, len(entries))
 	changed := false
 	for _, entry := range entries {
-		if strings.EqualFold(entry, InstallDir()) {
+		if strings.EqualFold(entry, dir) {
 			changed = true
 			continue
 		}
 		kept = append(kept, entry)
 	}
-	if changed {
-		if err := setUserPath(strings.Join(kept, ";")); err != nil {
-			return Status{}, fmt.Errorf("写回用户 PATH 失败: %w", err)
-		}
+	if !changed {
+		return nil
 	}
-	return Current(), nil
+	return setUserPath(strings.Join(kept, ";"))
 }
 
 // userPathEntries 与 setUserPath 在 climgr_windows.go / climgr_other.go 中按平台实现：

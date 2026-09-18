@@ -22,6 +22,7 @@ function bindings(): {
   CLIStatus?: () => Promise<CliStatus>;
   InstallCLIs?: () => Promise<CliStatus>;
   UninstallCLIs?: () => Promise<CliStatus>;
+  TakeOverConflicts?: () => Promise<CliStatus>;
   DataDir?: () => Promise<string>;
 } | undefined {
   return (window as unknown as { go?: { main?: { App?: Record<string, () => Promise<unknown>> } } })
@@ -44,6 +45,11 @@ export const desktopApi = {
   },
   async uninstallClis(): Promise<CliStatus> {
     const call = bindings()?.UninstallCLIs;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    return call();
+  },
+  async takeOverConflicts(): Promise<CliStatus> {
+    const call = bindings()?.TakeOverConflicts;
     if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
     return call();
   },

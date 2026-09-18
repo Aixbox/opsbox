@@ -15,7 +15,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install-cli.ps1
 powershell -ExecutionPolicy Bypass -File scripts\uninstall-cli.ps1
 ```
 
-> 若本机还装有旧平台（personal-admin）的同名 CLI（`...\Programs\padmin`），PATH 靠前的那个生效——AI CLI 面板会列出冲突目录。不再用旧平台的话先卸载它（旧版自带 `xxxctl uninstall`，或删除 padmin 目录并从 PATH 移除），避免敲 `sshctl` 连到旧平台。
+> 若本机还装有旧平台（personal-admin）的同名 CLI（`...\Programs\padmin`），PATH 靠前的那个生效——AI CLI 面板会列出冲突目录并提供「移除旧版命令」按钮（只删旧目录里的同名 CLI，其他文件不动；目录清空则移除并从 PATH 去掉该条目）。移除后**重开终端**再验证 `sshctl --version`。
 
 ## 前置条件
 

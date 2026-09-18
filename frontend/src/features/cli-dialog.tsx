@@ -26,8 +26,12 @@ export function CliDialog({ onClose }: { onClose: () => void }) {
     mutationFn: () => desktopApi.uninstallClis(),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: cliKey }),
   });
+  const takeOver = useMutation({
+    mutationFn: () => desktopApi.takeOverConflicts(),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: cliKey }),
+  });
 
-  const busy = install.isPending || uninstall.isPending;
+  const busy = install.isPending || uninstall.isPending || takeOver.isPending;
   const data: CliStatus | undefined = status.data;
 
   return (
@@ -84,14 +88,33 @@ export function CliDialog({ onClose }: { onClose: () => void }) {
                   )}
                   {data.conflicts && data.conflicts.length > 0 && (
                     <Notice status="warning" title="发现同名命令（PATH 冲突）">
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <p>以下目录里存在同名 CLI（如旧平台的 sshctl），且排在安装目录之前，命令行里会优先命中它们：</p>
                         {data.conflicts.map((dir) => (
                           <p key={dir} className="font-mono text-xs">
                             {dir}
                           </p>
                         ))}
-                        <p>不再使用旧平台 CLI 时，请卸载它们或将安装目录在 PATH 中前移。</p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            isDisabled={busy}
+                            onPress={() =>
+                              setConfirmation({
+                                title: "移除旧版同名命令？",
+                                description:
+                                  "将删除上述目录里的 sshctl / sqlctl / redisctl（旧平台的 CLI），目录因此清空则一并移除，并从用户 PATH 去掉这些目录。目录里的其他文件不受影响。",
+                                danger: true,
+                                label: "移除旧版命令",
+                                action: () => takeOver.mutateAsync(),
+                              })
+                            }
+                          >
+                            移除旧版命令
+                          </Button>
+                          <span className="text-xs text-muted">或自行卸载旧平台 CLI 后重开终端。</span>
+                        </div>
                       </div>
                     </Notice>
                   )}
@@ -113,6 +136,11 @@ export function CliDialog({ onClose }: { onClose: () => void }) {
               {uninstall.isError && (
                 <Notice status="danger" title="卸载失败">
                   {errorMessage(uninstall.error)}
+                </Notice>
+              )}
+              {takeOver.isError && (
+                <Notice status="danger" title="移除旧版命令失败">
+                  {errorMessage(takeOver.error)}
                 </Notice>
               )}
             </Modal.Body>
