@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"fyne.io/systray"
 	"golang.org/x/sys/windows/registry"
@@ -17,10 +19,16 @@ var iconICO []byte
 
 var hooks Hooks
 
-// Start 创建托盘图标并开始服务菜单事件。非阻塞（内部 goroutine）。
+// Start 创建托盘图标并开始服务菜单事件。非阻塞（专用线程）。
+// systray 的窗口创建与消息泵必须固定在同一个 OS 线程上（库的 init() 只锁
+// 主线程，而主线程归 Wails 所有），所以这里显式 LockOSThread 后再 Run，
+// 避免调度器把 goroutine 搬到别的线程导致托盘消息/行为异常。
 func Start(h Hooks) error {
 	hooks = h
-	go systray.Run(onReady, onExit)
+	go func() {
+		runtime.LockOSThread()
+		systray.Run(onReady, onExit)
+	}()
 	return nil
 }
 
@@ -28,7 +36,13 @@ func Start(h Hooks) error {
 func Stop() { systray.Quit() }
 
 func onReady() {
-	systray.SetIcon(iconICO)
+	// SetIcon 内部吞错误只打库日志（GUI 进程里不可见），这里用返回 error 的
+	// 入口并把失败写进 slog，托盘图标消失时至少能从 stderr/日志定位。
+	if path, err := writeIconFile(); err != nil {
+		slog.Error("tray: write icon file", "error", err)
+	} else if err := systray.SetIconFromFilePath(path); err != nil {
+		slog.Error("tray: set icon", "error", err)
+	}
 	systray.SetTooltip("opsbox — 本地运维工具箱")
 	// 左键单击托盘 = 唤回主窗口（Docker Desktop 惯例）。
 	systray.SetOnTapped(func() {
@@ -72,6 +86,19 @@ func onReady() {
 			}
 		}
 	}()
+}
+
+// writeIconFile 把内嵌的 ico 落到临时文件（SetIconFromFilePath 需要）。
+func writeIconFile() (string, error) {
+	dir, err := os.MkdirTemp("", "opsbox-tray")
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "opsbox.ico")
+	if err := os.WriteFile(path, iconICO, 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func onExit() {}
