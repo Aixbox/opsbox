@@ -2,6 +2,19 @@
 
 sshctl / sqlctl / redisctl 是 opsbox 内置的三个运维 CLI，供 AI（及人）在命令行操控 SSH、数据库、Redis。执行、审计、审批全部发生在本地 opsbox 服务里，CLI 本身无状态、无登录。
 
+## 安装
+
+```powershell
+# 在 opsbox 仓库根目录执行（构建 + 复制到 %LOCALAPPDATA%\Programs\opsbox\bin + 加入用户 PATH）
+powershell -ExecutionPolicy Bypass -File scripts\install-cli.ps1
+# 卸载
+powershell -ExecutionPolicy Bypass -File scripts\uninstall-cli.ps1
+```
+
+安装后重开终端，任意目录直接可用。升级：重新跑一遍安装脚本即可覆盖。
+
+> 若本机还装有旧平台（personal-admin）的同名 CLI（`...\Programs\padmin`），PATH 靠前的那个生效。不再用旧平台的话先卸载它（旧版自带 `xxxctl uninstall`，或删除 padmin 目录并从 PATH 移除），避免敲 `sshctl` 连到旧平台。
+
 ## 前置条件
 
 1. **opsbox 桌面应用必须正在运行**（CLI 通过探测 `127.0.0.1:37421..37445` 的 `/healthz` 自动发现服务端口；应用未启动时 CLI 报错退出码 4）。
