@@ -188,7 +188,7 @@ func isLocalUIOrigin(origin string) bool {
 		return false
 	}
 	switch parsed.Hostname() {
-	case "wails.localhost", "localhost", "127.0.0.1", "::1":
+	case "wails.localhost", "wails", "localhost", "127.0.0.1", "::1":
 		return true
 	}
 	return false
