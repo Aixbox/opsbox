@@ -2,7 +2,10 @@ import { Tabs } from "@heroui/react";
 import { Button } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Settings2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import SshLogsPage from "~/features/ssh-logs-page";
+import SqlLogsPage from "~/features/sql-logs-page";
+import RedisLogsPage from "~/features/redis-logs-page";
 import SqlPage from "~/features/sql-page";
 import RedisPage from "~/features/redis-page";
 import {
@@ -225,6 +228,33 @@ function SshPage() {
   );
 }
 
+// 模块内二级视图：连接管理 / 执行日志
+function ModulePanel({ label, main, logs }: { label: string; main: ReactNode; logs: ReactNode }) {
+  const [view, setView] = useState("main");
+  return (
+    <Tabs selectedKey={view} onSelectionChange={(key) => setView(String(key))}>
+      <Tabs.ListContainer>
+        <Tabs.List aria-label={`${label}视图`}>
+          <Tabs.Tab id="main" className="whitespace-nowrap">
+            连接
+            <Tabs.Indicator />
+          </Tabs.Tab>
+          <Tabs.Tab id="logs" className="whitespace-nowrap">
+            日志
+            <Tabs.Indicator />
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs.ListContainer>
+      <Tabs.Panel id="main" className="pt-5">
+        {main}
+      </Tabs.Panel>
+      <Tabs.Panel id="logs" className="pt-5">
+        {logs}
+      </Tabs.Panel>
+    </Tabs>
+  );
+}
+
 // opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换。
 export default function App() {
   const [tab, setTab] = useState("ssh");
@@ -248,13 +278,13 @@ export default function App() {
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel id="ssh" className="pt-5">
-          <SshPage />
+          <ModulePanel label="SSH" main={<SshPage />} logs={<SshLogsPage />} />
         </Tabs.Panel>
         <Tabs.Panel id="sql" className="pt-5">
-          <SqlPage />
+          <ModulePanel label="数据库" main={<SqlPage />} logs={<SqlLogsPage />} />
         </Tabs.Panel>
         <Tabs.Panel id="redis" className="pt-5">
-          <RedisPage />
+          <ModulePanel label="Redis" main={<RedisPage />} logs={<RedisLogsPage />} />
         </Tabs.Panel>
       </Tabs>
     </div>

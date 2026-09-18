@@ -320,3 +320,37 @@ export function ConfirmDialog({ confirmation, onClose }: { confirmation: Confirm
     </AlertDialog.Backdrop>
   );
 }
+
+export function DetailDialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Modal.Backdrop
+      isOpen
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <Modal.Container scroll="inside">
+        <Modal.Dialog className="w-full sm:max-w-2xl">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{title}</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="space-y-5">{children}</Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onPress={onClose}>
+              关闭
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
