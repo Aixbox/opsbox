@@ -42,22 +42,58 @@ interface Envelope<T> {
 let apiBase = "";
 
 /**
+ * 从 Go 绑定读实际端口。Wails v2 生成的绑定命名空间是绑定对象所在 Go 包名
+ * （App 在 main 包 → window.go.main.App）；写成项目名 "opsbox" 是常见错误，
+ * 两个都试一遍以兼容将来把 App 挪进子包的情况。
+ */
+async function discoverPortFromBindings(): Promise<number> {
+  const bindings = (window as unknown as {
+    go?: Record<string, { App?: { ServerPort?: () => Promise<number> } }>;
+  }).go;
+  for (const namespace of ["main", "opsbox"]) {
+    try {
+      const port = await bindings?.[namespace]?.App?.ServerPort?.();
+      if (port && port > 0) return port;
+    } catch {
+      // 该命名空间不存在，继续尝试下一个
+    }
+  }
+  return 0;
+}
+
+/** 绑定不可用时兜底：直接探测默认端口的健康探针。 */
+async function probeHealthz(port: number): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const response = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: controller.signal });
+    clearTimeout(timer);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 发现 API 基址。Wails 环境从 Go 绑定读实际端口（默认 37421 被占用时会同向顺延）；
- * 取不到绑定（vite dev）时保持空串走相对路径（vite proxy）。
+ * 取不到绑定时兜底探测默认端口；vite dev 下两者都失败则保持空串走相对路径（vite proxy）。
  */
 export async function initApiBase(): Promise<void> {
   if (import.meta.env.VITE_API_BASE_URL) {
     apiBase = String(import.meta.env.VITE_API_BASE_URL);
     return;
   }
-  try {
-    const bindings = (window as unknown as { go?: { opsbox?: { App?: { ServerPort?: () => Promise<number> } } } }).go;
-    const port = await bindings?.opsbox?.App?.ServerPort?.();
-    if (port && port > 0) {
-      apiBase = `http://127.0.0.1:${port}`;
+  const port = await discoverPortFromBindings();
+  if (port > 0) {
+    apiBase = `http://127.0.0.1:${port}`;
+    return;
+  }
+  // 兜底：绑定缺失（如 Wails 版本差异）时按默认端口顺延探测最多 5 个
+  for (let candidate = 37421; candidate < 37421 + 5; candidate += 1) {
+    if (await probeHealthz(candidate)) {
+      apiBase = `http://127.0.0.1:${candidate}`;
+      return;
     }
-  } catch {
-    // 非 Wails 环境：走相对路径
   }
 }
 
