@@ -15,3 +15,5 @@ wailsjs/
 # 工具生成物
 frontend/tsconfig.tsbuildinfo
 frontend/package.json.md5
+
+.workbuddy
