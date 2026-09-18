@@ -3,6 +3,7 @@ module opsbox
 go 1.26.0
 
 require (
+	fyne.io/systray v1.12.2
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/google/uuid v1.6.0

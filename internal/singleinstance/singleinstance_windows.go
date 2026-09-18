@@ -33,6 +33,6 @@ func alertAlreadyRunning() {
 	user32 := windows.NewLazySystemDLL("user32.dll")
 	messageBox := user32.NewProc("MessageBoxW")
 	title, _ := windows.UTF16PtrFromString("opsbox")
-	text, _ := windows.UTF16PtrFromString("opsbox 已在运行，请使用已打开的窗口。")
+	text, _ := windows.UTF16PtrFromString("opsbox 已在运行：可从任务栏右下角托盘图标打开窗口（点 X 只是收起到托盘，服务保持运行）。")
 	_, _, _ = messageBox.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), 0x40 /* MB_ICONINFORMATION */)
 }

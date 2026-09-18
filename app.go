@@ -17,6 +17,9 @@ import (
 	"opsbox/internal/climgr"
 	"opsbox/internal/platform/security"
 	"opsbox/internal/store"
+	"opsbox/internal/tray"
+
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // appVersion 由构建注入（wails build -ldflags "-X main.appVersion=…"），与内嵌 CLI 同版本。
@@ -24,9 +27,10 @@ var appVersion = "dev"
 
 // App 是 Wails 绑定对象：生命周期管理 + 给前端暴露少量元信息。
 type App struct {
-	ctx     context.Context
-	server  *api.Server
-	dataDir string
+	ctx      context.Context
+	server   *api.Server
+	dataDir  string
+	quitting bool
 }
 
 func NewApp() *App { return &App{} }
@@ -78,10 +82,34 @@ func (a *App) startup(ctx context.Context) {
 	server.RunBackground(ctx)
 	a.server = server
 	a.writeDiscoveryFile(server.Port())
+	// 托盘常驻：关窗最小化后由托盘唤回；开机自启开关也挂在托盘菜单。
+	if err := tray.Start(tray.Hooks{
+		Show: func() {
+			wailsruntime.WindowUnminimise(ctx)
+			wailsruntime.WindowShow(ctx)
+		},
+		Quit: func() {
+			a.quitting = true
+			wailsruntime.Quit(ctx)
+		},
+	}); err != nil {
+		log.Warn("start tray", "error", err)
+	}
 	log.Info("opsbox api ready", "port", server.Port(), "dataDir", dataDir)
 }
 
+// beforeClose 拦截窗口关闭：点 X = 隐藏到托盘，本地服务保持运行（CLI 可用）。
+// 托盘「退出」先置 quitting 再 Quit，此时放行真正关闭。
+func (a *App) beforeClose(ctx context.Context) bool {
+	if a.quitting {
+		return false
+	}
+	wailsruntime.WindowHide(ctx)
+	return true
+}
+
 func (a *App) shutdown(ctx context.Context) {
+	tray.Stop()
 	if a.server != nil {
 		_ = a.server.Shutdown(ctx)
 	}
