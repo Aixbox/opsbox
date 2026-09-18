@@ -1,8 +1,9 @@
 import { Tabs } from "@heroui/react";
 import { Button } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Settings2 } from "lucide-react";
+import { Plus, Settings2, TerminalSquare } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { CliDialog } from "~/features/cli-dialog";
 import SshLogsPage from "~/features/ssh-logs-page";
 import SqlLogsPage from "~/features/sql-logs-page";
 import RedisLogsPage from "~/features/redis-logs-page";
@@ -255,12 +256,23 @@ function ModulePanel({ label, main, logs }: { label: string; main: ReactNode; lo
   );
 }
 
-// opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换。
+// opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换；顶部「AI CLI」管理命令行入口。
 export default function App() {
   const [tab, setTab] = useState("ssh");
+  const [showCli, setShowCli] = useState(false);
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-6 py-8">
-      <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
+      <header className="flex items-center justify-between gap-4">
+        <div className="flex items-baseline gap-2">
+          <span className="text-lg font-semibold tracking-tight">opsbox</span>
+          <span className="text-xs text-muted">本地运维工具箱 · SSH / 数据库 / Redis</span>
+        </div>
+        <Button variant="secondary" onPress={() => setShowCli(true)}>
+          <TerminalSquare size={16} aria-hidden="true" />
+          AI CLI
+        </Button>
+      </header>
+      <Tabs className="mt-4" selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
         <Tabs.ListContainer>
           <Tabs.List aria-label="运维模块">
             <Tabs.Tab id="ssh" className="whitespace-nowrap">
@@ -287,6 +299,7 @@ export default function App() {
           <ModulePanel label="Redis" main={<RedisPage />} logs={<RedisLogsPage />} />
         </Tabs.Panel>
       </Tabs>
+      {showCli && <CliDialog onClose={() => setShowCli(false)} />}
     </div>
   );
 }

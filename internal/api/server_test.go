@@ -27,7 +27,7 @@ func TestServerEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cipher: %v", err)
 	}
-	server, err := New(db, cipher, slog.Default())
+	server, err := New(db, cipher, slog.Default(), "test")
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestOriginGuard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cipher: %v", err)
 	}
-	server, err := New(db, cipher, slog.Default())
+	server, err := New(db, cipher, slog.Default(), "test")
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestApproveRequiresWebUI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cipher: %v", err)
 	}
-	server, err := New(db, cipher, slog.Default())
+	server, err := New(db, cipher, slog.Default(), "test")
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}

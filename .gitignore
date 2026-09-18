@@ -20,3 +20,7 @@ frontend/package.json.md5
 
 # CLI 构建产物
 bin/
+
+# CLI 嵌入构建产物（方案讨论中）
+internal/climgr/clis/*.exe
+internal/climgr/clis/VERSION

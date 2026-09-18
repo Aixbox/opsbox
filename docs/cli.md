@@ -4,6 +4,10 @@ sshctl / sqlctl / redisctl 是 opsbox 内置的三个运维 CLI，供 AI（及�
 
 ## 安装
 
+**推荐：应用内一键安装。** 打开 opsbox 窗口 → 右上角「AI CLI」→ 点击「一键安装」。CLI 由应用内嵌，安装到 `%LOCALAPPDATA%\Programs\opsbox\bin` 并写入用户 PATH，装完**重开一个终端**即可在任意目录使用。应用升级后重点一次「一键安装」即可覆盖更新；同一面板可卸载。
+
+开发者备选（仓库内构建，日常用户无需关心）：
+
 ```powershell
 # 在 opsbox 仓库根目录执行（构建 + 复制到 %LOCALAPPDATA%\Programs\opsbox\bin + 加入用户 PATH）
 powershell -ExecutionPolicy Bypass -File scripts\install-cli.ps1
@@ -11,13 +15,11 @@ powershell -ExecutionPolicy Bypass -File scripts\install-cli.ps1
 powershell -ExecutionPolicy Bypass -File scripts\uninstall-cli.ps1
 ```
 
-安装后重开终端，任意目录直接可用。升级：重新跑一遍安装脚本即可覆盖。
-
-> 若本机还装有旧平台（personal-admin）的同名 CLI（`...\Programs\padmin`），PATH 靠前的那个生效。不再用旧平台的话先卸载它（旧版自带 `xxxctl uninstall`，或删除 padmin 目录并从 PATH 移除），避免敲 `sshctl` 连到旧平台。
+> 若本机还装有旧平台（personal-admin）的同名 CLI（`...\Programs\padmin`），PATH 靠前的那个生效——AI CLI 面板会列出冲突目录。不再用旧平台的话先卸载它（旧版自带 `xxxctl uninstall`，或删除 padmin 目录并从 PATH 移除），避免敲 `sshctl` 连到旧平台。
 
 ## 前置条件
 
-1. **opsbox 桌面应用必须正在运行**（CLI 通过探测 `127.0.0.1:37421..37445` 的 `/healthz` 自动发现服务端口；应用未启动时 CLI 报错退出码 4）。
+1. **opsbox 桌面应用必须正在运行**（应用单实例运行、端口稳定；CLI 先读发现文件 `%APPDATA%\opsbox\server.json`，再探测 `127.0.0.1:37421..37445` 的 `/healthz` 并校验服务身份为 opsbox。应用未启动时 CLI 报错退出码 4）。
 2. **会话即授权**：只有用户在 opsbox 窗口里打开的会话（SSH 终端 / SQL 控制台 / Redis 控制台）能被 CLI 操作。连接没有打开的会话时一律拒绝；用户关掉会话即刻失权。CLI 不能自己新建会话。
 3. 地址优先级：`--url` 参数 → `OPSBOX_URL` 环境变量 → 自动探测。一般无需指定。
 

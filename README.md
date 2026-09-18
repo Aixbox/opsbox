@@ -56,7 +56,6 @@ wails build                     # 出包 build/bin/opsbox.exe
 
 三个运维 CLI 供 AI（及人）在命令行操控本机 opsbox：执行、审计、审批都在本地服务里，CLI 无状态无登录，自动探测服务端口。审批预检协议（`--check` / `--confirm-token`，退出码 0-5）与 AI 使用指南见 [docs/cli.md](docs/cli.md)。
 
-```powershell
-# 安装到 %LOCALAPPDATA%\Programs\opsbox\bin 并加入用户 PATH（重开终端生效）
-powershell -ExecutionPolicy Bypass -File scripts\install-cli.ps1
-```
+**安装：打开 opsbox 窗口 → 右上角「AI CLI」→ 一键安装**。CLI 内嵌在应用里，装到 `%LOCALAPPDATA%\Programs\opsbox\bin` 并写入用户 PATH，重开终端生效；同面板可查看状态、冲突与卸载。
+
+开发者出包：`scripts\build-all.ps1`（构建 CLI → 内嵌 → wails build）；`scripts\install-cli.ps1` / `uninstall-cli.ps1` 为仓库内直接安装/卸载的备选方式。

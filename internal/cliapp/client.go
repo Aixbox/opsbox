@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -82,7 +83,7 @@ type Client struct {
 	HTTP    *http.Client
 }
 
-// NewClient 构造客户端。地址优先级：--url 参数 → OPSBOX_URL 环境变量 → 探测 127.0.0.1 /healthz。
+// NewClient 构造客户端。地址优先级：--url 参数 → OPSBOX_URL 环境变量 → 发现文件 → 端口探测。
 func NewClient(urlOverride string) (*Client, error) {
 	baseURL := strings.TrimSpace(urlOverride)
 	if baseURL == "" {
@@ -98,20 +99,83 @@ func NewClient(urlOverride string) (*Client, error) {
 	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), HTTP: &http.Client{Timeout: 0}}, nil
 }
 
-// DiscoverBaseURL 从 37421 起逐个探测 127.0.0.1 上暴露 /healthz 的服务（与服务端端口顺延范围一致）。
+// healthInfo 是 /healthz 的身份标识；只有 app == "opsbox" 的服务才被 CLI 认可，
+// 防止端口窗口内恰好有其他带健康探针的本地服务被误连。
+type healthInfo struct {
+	Status  string `json:"status"`
+	App     string `json:"app"`
+	Version string `json:"version"`
+}
+
+// verifyOpsbox 探测 base 上的 /healthz 并校验是 opsbox 服务。
+func verifyOpsbox(base string, probe *http.Client) bool {
+	response, err := probe.Get(base + "/healthz")
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false
+	}
+	var info healthInfo
+	if err := json.NewDecoder(io.LimitReader(response.Body, 4<<10)).Decode(&info); err != nil {
+		return false
+	}
+	return info.App == "opsbox"
+}
+
+// discoveryFilePath 是桌面应用启动时写下的端口发现文件（<UserConfigDir>/opsbox/server.json）。
+type discoveryFilePath struct {
+	Port    int    `json:"port"`
+	PID     int    `json:"pid"`
+	Version string `json:"version"`
+}
+
+// readDiscoveryPort 从发现文件读上次记录的端口。文件缺失、损坏或端口非法时返回 0。
+func readDiscoveryPort() int {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return 0
+	}
+	raw, err := os.ReadFile(filepath.Join(base, "opsbox", "server.json"))
+	if err != nil {
+		return 0
+	}
+	var info discoveryFilePath
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return 0
+	}
+	if info.Port < 1 || info.Port > 65535 {
+		return 0
+	}
+	return info.Port
+}
+
+// DiscoverBaseURL 定位本地 opsbox 服务：
+//  1. 读桌面应用写下的发现文件（端口顺延场景 O(1) 命中）；
+//  2. 回落为从 37421 起逐口扫描（与服务端顺延范围一致）。
+//
+// 两条路径都以 /healthz 的 app 身份校验为准，杜绝误连其他本地服务。
 func DiscoverBaseURL() (string, error) {
 	probe := &http.Client{Timeout: 1200 * time.Millisecond}
-	var lastErr error
+	candidates := make([]string, 0, PortScanCount+1)
+	if port := readDiscoveryPort(); port > 0 {
+		candidates = append(candidates, fmt.Sprintf("http://127.0.0.1:%d", port))
+	}
 	for offset := 0; offset < PortScanCount; offset++ {
-		base := fmt.Sprintf("http://127.0.0.1:%d", PreferredBasePort+offset)
+		candidates = append(candidates, fmt.Sprintf("http://127.0.0.1:%d", PreferredBasePort+offset))
+	}
+	var lastErr error
+	for _, base := range candidates {
 		response, err := probe.Get(base + "/healthz")
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+		var info healthInfo
+		err = json.NewDecoder(io.LimitReader(response.Body, 4<<10)).Decode(&info)
 		response.Body.Close()
-		if response.StatusCode == http.StatusOK {
+		if err == nil && info.App == "opsbox" {
 			return base, nil
 		}
 	}

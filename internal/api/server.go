@@ -38,10 +38,11 @@ type Server struct {
 	sqlService   *sqlops.Service
 	redisService *redisops.Service
 	log          *slog.Logger
+	version      string
 }
 
-// New 创建服务并装配路由。
-func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger) (*Server, error) {
+// New 创建服务并装配路由。version 用于 /healthz 身份标识（CLI 靠它确认连的是 opsbox 而不是别的本地服务）。
+func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger, version string) (*Server, error) {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -51,7 +52,7 @@ func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger) (*Server, e
 	// 而不是只靠 CORS 响应头让浏览器拦响应（简单请求服务器侧照样会执行）。
 	engine.Use(gin.Recovery(), originGuard(), cors())
 	engine.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "app": "opsbox", "version": version})
 	})
 
 	group := engine.Group("/api/v1")
@@ -71,7 +72,7 @@ func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger) (*Server, e
 	return &Server{
 		engine: engine,
 		sshService: sshService, sqlService: sqlService, redisService: redisService,
-		log: log,
+		log: log, version: version,
 	}, nil
 }
 
