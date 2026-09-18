@@ -82,9 +82,23 @@ func currentUser(c *gin.Context) int64 {
 	return localUserID
 }
 
-// requestSource 区分操作来源（cli / web）。本地版暂无 CLI，恒为 web；CLI 落地后在此扩展。
+// requestSource 区分操作来源（cli / web）：浏览器请求（Wails WebView / dev 页面）带 Origin 头，
+// CLI / 脚本没有。originGuard 已在服务器侧拒掉非本地来源，这里只做本地区分。
 func requestSource(c *gin.Context) string {
+	if c.Request.Header.Get("Origin") == "" {
+		return "cli"
+	}
 	return "web"
+}
+
+// requireWebUI 审批操作只允许 UI（带 Origin 的浏览器请求）触发：CLI 不能批准自己提交的
+// 写操作——批准权必须握在用户手里，这是审批队列的人机分离闸门。
+func requireWebUI(c *gin.Context) bool {
+	if requestSource(c) == "web" {
+		return true
+	}
+	response.Error(c, http.StatusForbidden, "FORBIDDEN", "审批操作请在 opsbox 窗口中完成；CLI 不能批准自己提交的操作", nil)
+	return false
 }
 
 func parseID(c *gin.Context, name string) (int64, bool) {
@@ -115,7 +129,7 @@ func fail(c *gin.Context, err error) {
 		status, code, message = http.StatusConflict, "SSH_CONNECTION_DISABLED", err.Error()
 	case errors.Is(err, ErrNoOpenSession):
 		status, code = http.StatusConflict, "SSH_NO_OPEN_SESSION"
-		message = "该连接没有已打开的终端会话。请先在 Web 端「SSH 管理 → 终端」打开该连接的终端，再执行命令（命令会在那个终端的连接上执行，你能实时看到命令与输出）。"
+		message = "该连接没有已打开的终端会话。请先在 opsbox 窗口「SSH → 终端」打开该连接的终端，再执行命令（命令会在那个终端的连接上执行，你能实时看到命令与输出）。"
 	case errors.Is(err, sshx.ErrExecBusy):
 		status, code, message = http.StatusConflict, "SSH_EXEC_BUSY", err.Error()+"；请等它结束后再提交"
 	case errors.Is(err, ErrConflict), errors.Is(err, sshx.ErrSessionAttached):
@@ -296,6 +310,9 @@ func (h *Handler) listPending(c *gin.Context) {
 }
 
 func (h *Handler) approve(c *gin.Context) {
+	if !requireWebUI(c) {
+		return
+	}
 	id, ok := parseID(c, "id")
 	if !ok {
 		return

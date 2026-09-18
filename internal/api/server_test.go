@@ -115,6 +115,121 @@ func TestServerEndToEnd(t *testing.T) {
 	}
 }
 
+// TestOriginGuard 验证：非本地来源的浏览器请求被拒，CLI（无 Origin）与本地 UI 放行。
+func TestOriginGuard(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer db.Close()
+	cipher, err := security.NewTokenCipher("test-secret")
+	if err != nil {
+		t.Fatalf("cipher: %v", err)
+	}
+	server, err := New(db, cipher, slog.Default())
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	if err := server.Listen(0); err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = server.Serve() }()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	base := "http://127.0.0.1:" + itoa(server.Port())
+
+	cases := []struct {
+		name   string
+		origin string
+		want   int
+	}{
+		{"无 Origin（CLI）", "", http.StatusOK},
+		{"Wails WebView", "http://wails.localhost", http.StatusOK},
+		{"本机 dev server", "http://localhost:5173", http.StatusOK},
+		{"file://", "null", http.StatusOK},
+		{"恶意网页", "https://evil.example.com", http.StatusForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, base+"/api/v1/ssh/connections", nil)
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			resp, err := http.DefaultClient.Do(request)
+			if err != nil {
+				t.Fatalf("do: %v", err)
+			}
+			defer resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			if resp.StatusCode != tc.want {
+				t.Fatalf("Origin %q: status = %d, want %d", tc.origin, resp.StatusCode, tc.want)
+			}
+		})
+	}
+}
+
+// TestApproveRequiresWebUI 验证：CLI（无 Origin）不能调用 approve——批准权只在 UI。
+func TestApproveRequiresWebUI(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer db.Close()
+	cipher, err := security.NewTokenCipher("test-secret")
+	if err != nil {
+		t.Fatalf("cipher: %v", err)
+	}
+	server, err := New(db, cipher, slog.Default())
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	if err := server.Listen(0); err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = server.Serve() }()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	base := "http://127.0.0.1:" + itoa(server.Port())
+
+	// 用一个不存在的命令 ID：CLI 来源应在进入业务前就被 403，而不是 404
+	request, err := http.NewRequest(http.MethodPost, base+"/api/v1/ssh/commands/999/approve", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("cli approve status = %d, want 403", resp.StatusCode)
+	}
+
+	// UI 来源（带本地 Origin）应通过守卫进入业务（这里是 404：ID 不存在）
+	request.Header.Set("Origin", "http://wails.localhost")
+	resp, err = http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("do web: %v", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("web approve status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func itoa(v int) string {
 	if v == 0 {
 		return "0"

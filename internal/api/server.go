@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -46,7 +47,9 @@ func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger) (*Server, e
 	}
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
-	engine.Use(gin.Recovery(), cors())
+	// originGuard 必须先于 cors：恶意网页的跨站请求在进业务前就被拒，
+	// 而不是只靠 CORS 响应头让浏览器拦响应（简单请求服务器侧照样会执行）。
+	engine.Use(gin.Recovery(), originGuard(), cors())
 	engine.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -159,4 +162,34 @@ func cors() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// originGuard 拒绝一切来自非本地 UI 的浏览器请求（有 Origin 头但不是本机来源）。
+// CLI / 脚本没有 Origin 头，不受影响；恶意网页借用户浏览器发的跨站请求——无论预检与否——
+// 都会在服务器侧被拒，防止远程页面操控本机运维工具。
+func originGuard() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" && !isLocalUIOrigin(origin) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN_ORIGIN", "message": "拒绝来自非本地来源的请求"})
+			return
+		}
+		c.Next()
+	}
+}
+
+// isLocalUIOrigin 判断 Origin 是否为本地 UI（Wails WebView / 本机 dev server / file://）。
+func isLocalUIOrigin(origin string) bool {
+	if origin == "null" {
+		return true // file:// 等非标准来源
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	switch parsed.Hostname() {
+	case "wails.localhost", "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return false
 }

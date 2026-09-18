@@ -179,7 +179,7 @@ func approvalCheck(reason string, connectionID int64, command string, cipher *se
 		Action:   opscheck.ActionApproval,
 		Reason:   reason,
 		Token:    opscheck.Token(cipher, checkScope, connectionID, command),
-		Guidance: opscheck.GuidanceFor(opscheck.ActionApproval, "sshctl", "SSH 管理 → 待批准", reason),
+		Guidance: opscheck.GuidanceFor(opscheck.ActionApproval, "sshctl", "SSH → 待批准", reason),
 	}
 }
 

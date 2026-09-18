@@ -76,7 +76,7 @@ func GuidanceFor(action, tool, pendingEntry, reason string) string {
 		return fmt.Sprintf(
 			"该操作需要平台审批（%s）。流程：1) 先向用户完整展示这条操作与影响，获得明确确认；"+
 				"2) 确认后携带 --confirm-token <token> 重新执行同一条命令；"+
-				"3) 提交后进入平台待批队列，用户在 Web「%s」批准后才会执行。"+
+				"3) 提交后进入待批队列，用户在 opsbox 窗口「%s」批准后才会执行。"+
 				"不要在未获用户确认时重新提交，也不要改写命令绕过。", reason, pendingEntry)
 	default:
 		return fmt.Sprintf("该操作会被平台拦截或拒绝（%s），不要提交，也不要改写绕过；把原因告知用户。", reason)

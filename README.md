@@ -28,6 +28,8 @@ audit / approve 双模式、一次性 WebSocket 票据、命令输出加密落�
 | `internal/platform/console` | backend/internal/platform/console | WS 票据、会话命名规则 |
 | `internal/platform/security` | backend/internal/platform/security/token.go | AES-256-GCM、HMAC（审批预检令牌） |
 | `internal/platform/opscheck` | backend/internal/platform/opscheck | CLI 审批预检协议 |
+| `internal/cliapp` | backend/internal/cliapp | CLI 共享骨架（本地版：无登录，端口自动发现） |
+| `cmd/sshctl` `cmd/sqlctl` `cmd/redisctl` | backend/cmd/* | 三个运维 CLI，AI 操控入口，命令面与退出码与原版一致 |
 | `internal/ssh` | backend/internal/modules/ssh | 业务模块，去掉了权限码与 users 表关联 |
 | `internal/api/response` | backend/internal/http/response | 统一信封 |
 | `frontend/src/features/*` | app/features/{messaging,console,ssh} | UI 组件与页面，去掉登录/RBAC/CLI 安装引导 |
@@ -45,7 +47,15 @@ wails build                     # 出包 build/bin/opsbox.exe
 ## 路线
 
 - [x] 单 exe 本地运行（Wails）+ SSH 全功能（连接 / 终端 / exec / 审计 / 审批）
-- [ ] 执行日志页面（后端 API 已就绪：GET /api/v1/ssh/exec-logs）
-- [ ] SQL / Redis 运维模块按同样模式移植（sqlx / redisx / console 包）
-- [ ] 本机 CLI（opsbox ssh exec ...）供 AI 通过 Bash 调用，skills 同步更新
+- [x] 执行日志页面（SSH / SQL / Redis 三模块日志审计）
+- [x] SQL / Redis 运维模块（连接 / 控制台 / 日志 / 待批队列）
+- [x] 本机 CLI 三件套（sshctl / sqlctl / redisctl，见 docs/cli.md）——AI 通过 Bash 调用，审批预检协议与退出码同原版
 - [ ] 系统托盘 / 开机自启 / goreleaser 交叉编译
+
+## CLI
+
+三个运维 CLI 供 AI（及人）在命令行操控本机 opsbox：执行、审计、审批都在本地服务里，CLI 无状态无登录，自动探测服务端口。审批预检协议（`--check` / `--confirm-token`，退出码 0-5）与 AI 使用指南见 [docs/cli.md](docs/cli.md)。
+
+```bash
+go build -o bin/sshctl.exe ./cmd/sshctl    # sqlctl / redisctl 同理
+```

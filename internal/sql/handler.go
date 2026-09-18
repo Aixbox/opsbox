@@ -253,7 +253,7 @@ func fail(c *gin.Context, err error) {
 		status, code, message = http.StatusConflict, "SQL_CONNECTION_DISABLED", err.Error()
 	case errors.Is(err, ErrNoOpenSession):
 		status, code = http.StatusConflict, "SQL_NO_OPEN_SESSION"
-		message = "该连接没有已打开的控制台会话。请先在 Web 端「数据库管理 → 控制台」打开该连接的控制台，再执行查询（语句与结果会显示在那个面板里）。"
+		message = "该连接没有已打开的控制台会话。请先在 opsbox 窗口「数据库 → 控制台」打开该连接的控制台，再执行查询（语句与结果会显示在那个面板里）。"
 	case errors.Is(err, ErrConflict), errors.Is(err, ErrForbidden):
 		status, code, message = http.StatusConflict, "CONFLICT", err.Error()
 	case errors.Is(err, sqlx.ErrTimeout):

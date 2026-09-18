@@ -219,7 +219,7 @@ func approvalCheck(connectionID int64, args []string, cipher *security.TokenCiph
 		Action:   opscheck.ActionApproval,
 		Reason:   reason,
 		Token:    opscheck.Token(cipher, checkScope, connectionID, argsKey(args)),
-		Guidance: opscheck.GuidanceFor(opscheck.ActionApproval, "redisctl", "Redis 管理 → 待批准操作", reason),
+		Guidance: opscheck.GuidanceFor(opscheck.ActionApproval, "redisctl", "Redis → 待批准操作", reason),
 	}
 }
 

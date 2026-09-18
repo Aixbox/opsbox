@@ -17,3 +17,6 @@ frontend/tsconfig.tsbuildinfo
 frontend/package.json.md5
 
 .workbuddy
+
+# CLI 构建产物
+bin/
