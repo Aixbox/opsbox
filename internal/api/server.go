@@ -1,0 +1,136 @@
+// Package api 组装本地 HTTP 服务：gin 引擎、CORS、路由与健康探针。
+//
+// 服务只监听 127.0.0.1：本机 UI（Wails WebView 与浏览器 dev 模式）和未来的 CLI 都走它。
+// 无登录、无权限码——安全边界是「本机进程」+ 操作级闸门（黑名单 / 审批队列 / 一次性 WS 票据）。
+package api
+
+import (
+	"context"
+	"database/sql"
+	"log/slog"
+	"net"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"opsbox/internal/platform/security"
+	"opsbox/internal/ssh"
+)
+
+const (
+	// PreferredPort 是默认端口；被占用时向上顺延，直到找到可用端口。
+	PreferredPort = 37421
+	// LogRetentionDays 是执行审计日志的保留天数。
+	LogRetentionDays = 90
+)
+
+// Server 是本地 API 服务。
+type Server struct {
+	engine   *gin.Engine
+	listener net.Listener
+	http     *http.Server
+	service  *ssh.Service
+	log      *slog.Logger
+}
+
+// New 创建服务并装配路由。
+func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger) (*Server, error) {
+	if log == nil {
+		log = slog.Default()
+	}
+	gin.SetMode(gin.ReleaseMode)
+	engine := gin.New()
+	engine.Use(gin.Recovery(), cors())
+	engine.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	service := ssh.NewService(db, cipher, nil)
+	service.SetLogger(log)
+	group := engine.Group("/api/v1")
+	ssh.NewHandler(service).RegisterRoutes(group)
+
+	return &Server{engine: engine, service: service, log: log}, nil
+}
+
+// Listen 绑定 127.0.0.1 上从 preferred 开始的第一个可用端口。
+func (s *Server) Listen(preferred int) error {
+	var lastErr error
+	for port := preferred; port < preferred+25; port++ {
+		listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+		if err == nil {
+			s.listener = listener
+			break
+		}
+		lastErr = err
+	}
+	if s.listener == nil {
+		return lastErr
+	}
+	s.http = &http.Server{Handler: s.engine, ReadHeaderTimeout: 10 * time.Second}
+	return nil
+}
+
+// Port 返回实际监听端口；未监听返回 0。
+func (s *Server) Port() int {
+	if s.listener == nil {
+		return 0
+	}
+	return s.listener.Addr().(*net.TCPAddr).Port
+}
+
+// Serve 阻塞提供服务；在独立协程里调用。
+func (s *Server) Serve() error {
+	return s.http.Serve(s.listener)
+}
+
+// RunBackground 启动后台协程（会话回收、票据清理、日志清理），ctx 结束即退出。
+func (s *Server) RunBackground(ctx context.Context) {
+	s.service.Run(ctx)
+	go func() {
+		s.cleanup()
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.cleanup()
+			}
+		}
+	}()
+}
+
+func (s *Server) cleanup() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if err := s.service.Cleanup(ctx, LogRetentionDays*24*time.Hour); err != nil {
+		s.log.Warn("ssh log cleanup", "error", err)
+	}
+}
+
+// Shutdown 优雅停机。
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.http == nil {
+		return nil
+	}
+	return s.http.Shutdown(ctx)
+}
+
+// cors 允许任意来源：本地应用不跨权限边界，UI 在 Wails WebView 与浏览器 dev 模式下来源不同。
+// 全部请求不带凭证，"*" 语义足够。
+func cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
+}

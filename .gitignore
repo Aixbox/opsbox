@@ -1,0 +1,17 @@
+# 构建产物
+frontend/dist/
+build/bin/
+
+# 依赖与工具链
+node_modules/
+wailsjs/
+
+# 本地数据与调试
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# 工具生成物
+frontend/tsconfig.tsbuildinfo
+frontend/package.json.md5

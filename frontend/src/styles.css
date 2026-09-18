@@ -1,0 +1,272 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+:root {
+  view-transition-name: root;
+
+  /* 导航与标签栏提示需要快速反馈，避免沿用 HeroUI 默认的 1500ms/500ms 延迟。 */
+  --tooltip-delay: 200ms;
+  --tooltip-close-delay: 50ms;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@layer utilities {
+  .tabs-scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .tabs-scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+:root {
+  --expo-out: linear(
+    0 0%,
+    0.1684 2.66%,
+    0.3165 5.49%,
+    0.446 8.52%,
+    0.5581 11.78%,
+    0.6535 15.29%,
+    0.7341 19.11%,
+    0.8011 23.3%,
+    0.8557 27.93%,
+    0.8962 32.68%,
+    0.9283 38.01%,
+    0.9529 44.08%,
+    0.9711 51.14%,
+    0.9833 59.06%,
+    0.9915 68.74%,
+    1 100%
+  );
+}
+
+@layer base {
+  /* Keep native scrollbar tracks transparent across Chromium and Firefox. */
+  *,
+  *::before,
+  *::after {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Recharts accessibilityLayer 使图表根 SVG（.recharts-surface）可聚焦，程序化聚焦会触发
+     :focus-visible 黑色外框；连同容器与所有内部元素一并去除（图表内无输入控件，无副作用） */
+  .recharts-wrapper :focus,
+  .recharts-wrapper :focus-visible,
+  .recharts-wrapper:focus,
+  .recharts-wrapper:focus-visible,
+  .recharts-surface:focus,
+  .recharts-surface:focus-visible {
+    outline: none;
+  }
+
+  ::view-transition-group(root) {
+    animation: none;
+  }
+
+  html.theme-transitioning::view-transition-group(root) {
+    animation-duration: 0.7s;
+    animation-timing-function: var(--expo-out);
+  }
+
+  html.theme-transitioning::view-transition-new(root) {
+    animation-name: reveal-light;
+    animation-fill-mode: both;
+  }
+
+  ::view-transition-old(root),
+  .dark::view-transition-old(root) {
+    animation: none;
+    animation-fill-mode: both;
+    z-index: -1;
+  }
+
+  html.dark.theme-transitioning::view-transition-new(root) {
+    animation-name: reveal-dark;
+    animation-fill-mode: both;
+  }
+
+  @keyframes reveal-dark {
+    from {
+      clip-path: polygon(50% -71%, -50% 71%, -50% 71%, 50% -71%);
+    }
+
+    to {
+      clip-path: polygon(50% -71%, -50% 71%, 50% 171%, 171% 50%);
+    }
+  }
+
+  @keyframes reveal-light {
+    from {
+      clip-path: polygon(171% 50%, 50% 171%, 50% 171%, 171% 50%);
+    }
+
+    to {
+      clip-path: polygon(171% 50%, 50% 171%, -50% 71%, 50% -71%);
+    }
+  }
+}
+
+/* Chip soft 变体统一使用与标签页选中态一致的 12% 底色浓度。 */
+.chip--soft.chip--accent {
+  --chip-bg: color-mix(in oklab, var(--accent) 12%, transparent);
+  --chip-fg: var(--accent);
+}
+.chip--soft.chip--success {
+  --chip-bg: color-mix(in oklab, var(--success) 12%, transparent);
+  --chip-fg: var(--success);
+}
+.chip--soft.chip--warning {
+  --chip-bg: color-mix(in oklab, var(--warning) 12%, transparent);
+  --chip-fg: var(--warning);
+}
+.chip--soft.chip--danger {
+  --chip-bg: color-mix(in oklab, var(--danger) 12%, transparent);
+  --chip-fg: var(--danger);
+}
+.chip--soft.chip--default {
+  --chip-bg: color-mix(in oklab, var(--default) 12%, transparent);
+}
+.dark .chip--soft.chip--accent {
+  --chip-bg: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.dark .chip--soft.chip--success {
+  --chip-bg: color-mix(in oklab, var(--success) 12%, transparent);
+}
+.dark .chip--soft.chip--warning {
+  --chip-bg: color-mix(in oklab, var(--warning) 12%, transparent);
+}
+.dark .chip--soft.chip--danger {
+  --chip-bg: color-mix(in oklab, var(--danger) 12%, transparent);
+}
+.dark .chip--soft.chip--default {
+  --chip-bg: color-mix(in oklab, var(--default) 12%, transparent);
+}
+
+/* 通知徽标同样使用 12% 的 danger 底色，同时保留语义色文字。 */
+.semantic-status-badge.badge--soft.badge--danger {
+  --badge-bg: color-mix(in oklab, var(--danger) 12%, transparent);
+  --badge-fg: var(--danger);
+  --badge-border: color-mix(in oklab, var(--danger) 12%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Menu / Dropdown 弹层圆角同心修正
+ *
+ * HeroUI 弹层面板默认圆角 24px（min(32px, --radius-3xl)），与内部菜单项圆角
+ * 16px（rounded-2xl）不同心——同心要求面板圆角 = 菜单容器内边距 + 项圆角。
+ * 不同心时四角白边收窄（裸 Menu：直边 4px、角约 2.3px），看起来"边距不一致"。
+ * :has() 同时兜住裸 Menu 弹层（Popover+Menu，含右键菜单）与 Dropdown 弹层；
+ * 选择器特异度高于组件默认类，与引入顺序无关；不支持 :has() 的旧浏览器回落 24px。
+ * ------------------------------------------------------------------------- */
+.popover:has([data-slot="menu"]) {
+  border-radius: 20px; /* .menu 的 p-1(4px) + 菜单项 16px */
+}
+
+.dropdown__popover:has([data-slot="dropdown-menu"]) {
+  border-radius: 22px; /* dropdown-menu 的 p-1.5(6px) + 菜单项 16px */
+}
+
+/* ---------------------------------------------------------------------------
+ * MDXEditor 内容排版修复（所见即所得关键补丁）
+ *
+ * 根因：@mdxeditor/editor v4 的 style.css 只覆盖编辑器 chrome（工具栏/代码块/
+ * 表格编辑器）与行内标记（bold/code/quote/listitem），其 lexicalTheme 没有
+ * 映射 heading，标题、段落间距、列表符号的样式完全依赖浏览器默认值；而本项目
+ * 的 Tailwind v4 preflight 会把 h1-h6 降级为普通文本（font-size/weight: inherit）、
+ * 去掉 ul/ol 的 list-style 与 p 的 margin。
+ *
+ * 结果：markdown 快捷输入（"## "/"- "）在 DOM 层其实已实时转换成 h2/li，
+ * 但外观毫无变化，看起来"不像官网/Typora 的即时渲染"。官网正常是因为
+ * mdxeditor.dev 自己的站点 CSS 提供了这些排版。
+ *
+ * 此处在 .mdxeditor 作用域内恢复基础排版，只影响 MDXEditor 内容，不污染全局。
+ * ------------------------------------------------------------------------- */
+@layer base {
+  .mdxeditor h1,
+  .mdxeditor h2,
+  .mdxeditor h3,
+  .mdxeditor h4,
+  .mdxeditor h5,
+  .mdxeditor h6 {
+    font-weight: 600;
+    line-height: 1.35;
+    margin-block: 0.9em 0.45em;
+  }
+  .mdxeditor h1 {
+    font-size: 1.5em;
+  }
+  .mdxeditor h2 {
+    font-size: 1.3em;
+  }
+  .mdxeditor h3 {
+    font-size: 1.15em;
+  }
+  .mdxeditor h4 {
+    font-size: 1.05em;
+  }
+  .mdxeditor h5,
+  .mdxeditor h6 {
+    font-size: 1em;
+  }
+
+  .mdxeditor p {
+    margin-block: 0.375em;
+  }
+
+  .mdxeditor ul,
+  .mdxeditor ol {
+    margin-block: 0.375em;
+    padding-inline-start: 1.5em;
+  }
+  .mdxeditor ul {
+    list-style-type: disc;
+  }
+  .mdxeditor ul ul {
+    list-style-type: circle;
+  }
+  .mdxeditor ol {
+    list-style-type: decimal;
+  }
+
+  /* 任务列表（- [ ] / - [x]）由 MDXEditor 的 listItemChecked/Unchecked 自带勾选框，
+     需去掉圆点符号并收回缩进，避免双重标记 */
+  .mdxeditor ul:has(> li[class*="listItemChecked"]),
+  .mdxeditor ul:has(> li[class*="listItemUnchecked"]) {
+    list-style-type: none;
+    padding-inline-start: 0.25em;
+  }
+
+  .mdxeditor blockquote {
+    margin-block: 0.5em;
+  }
+
+  .mdxeditor hr {
+    margin-block: 1em;
+  }
+
+  /* 编辑器内容首尾不留额外空隙 */
+  .mdxeditor [contenteditable="true"] > :first-child {
+    margin-top: 0;
+  }
+  .mdxeditor [contenteditable="true"] > :last-child {
+    margin-bottom: 0;
+  }
+}
