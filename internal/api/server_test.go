@@ -87,6 +87,32 @@ func TestServerEndToEnd(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("settings status = %d", status)
 	}
+
+	status, _ = get("/api/v1/sql/connections")
+	if status != http.StatusOK {
+		t.Fatalf("sql connections status = %d", status)
+	}
+	status, _ = get("/api/v1/sql/settings")
+	if status != http.StatusOK {
+		t.Fatalf("sql settings status = %d", status)
+	}
+	status, _ = get("/api/v1/sql/pending-queries")
+	if status != http.StatusOK {
+		t.Fatalf("sql pending-queries status = %d", status)
+	}
+
+	status, _ = get("/api/v1/redis/connections")
+	if status != http.StatusOK {
+		t.Fatalf("redis connections status = %d", status)
+	}
+	status, _ = get("/api/v1/redis/settings")
+	if status != http.StatusOK {
+		t.Fatalf("redis settings status = %d", status)
+	}
+	status, _ = get("/api/v1/redis/pending-commands")
+	if status != http.StatusOK {
+		t.Fatalf("redis pending-commands status = %d", status)
+	}
 }
 
 func itoa(v int) string {

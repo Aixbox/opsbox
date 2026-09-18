@@ -16,6 +16,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"opsbox/internal/platform/security"
+	redisops "opsbox/internal/redis"
+	sqlops "opsbox/internal/sql"
 	"opsbox/internal/ssh"
 )
 
@@ -28,11 +30,13 @@ const (
 
 // Server 是本地 API 服务。
 type Server struct {
-	engine   *gin.Engine
-	listener net.Listener
-	http     *http.Server
-	service  *ssh.Service
-	log      *slog.Logger
+	engine       *gin.Engine
+	listener     net.Listener
+	http         *http.Server
+	sshService   *ssh.Service
+	sqlService   *sqlops.Service
+	redisService *redisops.Service
+	log          *slog.Logger
 }
 
 // New 创建服务并装配路由。
@@ -47,12 +51,25 @@ func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger) (*Server, e
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	service := ssh.NewService(db, cipher, nil)
-	service.SetLogger(log)
 	group := engine.Group("/api/v1")
-	ssh.NewHandler(service).RegisterRoutes(group)
 
-	return &Server{engine: engine, service: service, log: log}, nil
+	sshService := ssh.NewService(db, cipher, nil)
+	sshService.SetLogger(log)
+	ssh.NewHandler(sshService).RegisterRoutes(group)
+
+	sqlService := sqlops.NewService(db, cipher, nil)
+	sqlService.SetLogger(log)
+	sqlops.NewHandler(sqlService).RegisterRoutes(group)
+
+	redisService := redisops.NewService(db, cipher)
+	redisService.SetLogger(log)
+	redisops.NewHandler(redisService).RegisterRoutes(group)
+
+	return &Server{
+		engine: engine,
+		sshService: sshService, sqlService: sqlService, redisService: redisService,
+		log: log,
+	}, nil
 }
 
 // Listen 绑定 127.0.0.1 上从 preferred 开始的第一个可用端口。
@@ -88,7 +105,9 @@ func (s *Server) Serve() error {
 
 // RunBackground 启动后台协程（会话回收、票据清理、日志清理），ctx 结束即退出。
 func (s *Server) RunBackground(ctx context.Context) {
-	s.service.Run(ctx)
+	s.sshService.Run(ctx)
+	s.sqlService.Run(ctx)
+	s.redisService.Run(ctx)
 	go func() {
 		s.cleanup()
 		ticker := time.NewTicker(24 * time.Hour)
@@ -107,8 +126,15 @@ func (s *Server) RunBackground(ctx context.Context) {
 func (s *Server) cleanup() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	if err := s.service.Cleanup(ctx, LogRetentionDays*24*time.Hour); err != nil {
+	retention := LogRetentionDays * 24 * time.Hour
+	if err := s.sshService.Cleanup(ctx, retention); err != nil {
 		s.log.Warn("ssh log cleanup", "error", err)
+	}
+	if err := s.sqlService.Cleanup(ctx, retention); err != nil {
+		s.log.Warn("sql log cleanup", "error", err)
+	}
+	if err := s.redisService.Cleanup(ctx, retention); err != nil {
+		s.log.Warn("redis log cleanup", "error", err)
 	}
 }
 

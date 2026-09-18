@@ -1,7 +1,10 @@
+import { Tabs } from "@heroui/react";
 import { Button } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Settings2 } from "lucide-react";
 import { useState } from "react";
+import SqlPage from "~/features/sql-page";
+import RedisPage from "~/features/redis-page";
 import {
   ConfirmDialog,
   DataTable,
@@ -21,7 +24,7 @@ import { PolicyChip, sshKey } from "~/features/ssh/shared";
 import { TerminalDrawer } from "~/features/ssh/terminal-drawer";
 import { sshApi, type SshConnection } from "~/lib/api/ssh";
 
-export default function App() {
+function SshPage() {
   const connections = useQuery({
     queryKey: [...sshKey, "connections"],
     queryFn: ({ signal }) => sshApi.connections(signal),
@@ -218,6 +221,42 @@ export default function App() {
         )}
         <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} />
       </div>
+    </div>
+  );
+}
+
+// opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换。
+export default function App() {
+  const [tab, setTab] = useState("ssh");
+  return (
+    <div className="mx-auto min-h-screen max-w-6xl px-6 py-8">
+      <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
+        <Tabs.ListContainer>
+          <Tabs.List aria-label="运维模块">
+            <Tabs.Tab id="ssh" className="whitespace-nowrap">
+              SSH
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="sql" className="whitespace-nowrap">
+              数据库
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="redis" className="whitespace-nowrap">
+              Redis
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs.ListContainer>
+        <Tabs.Panel id="ssh" className="pt-5">
+          <SshPage />
+        </Tabs.Panel>
+        <Tabs.Panel id="sql" className="pt-5">
+          <SqlPage />
+        </Tabs.Panel>
+        <Tabs.Panel id="redis" className="pt-5">
+          <RedisPage />
+        </Tabs.Panel>
+      </Tabs>
     </div>
   );
 }
