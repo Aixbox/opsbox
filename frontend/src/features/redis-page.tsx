@@ -9,6 +9,7 @@ import {
   QueryError,
   RefreshButton,
   StatusChip,
+  AgentPrompt,
   dateTime,
   type Confirmation,
 } from "~/features/shared";
@@ -155,14 +156,26 @@ export default function RedisPage() {
         ]}
       />
       <section className="rounded-2xl border border-separator bg-surface-secondary p-4 text-sm leading-6 text-muted">
-        <p className="font-medium text-foreground">使用说明</p>
+        <p className="font-medium text-foreground">使用说明（人 + AI Agent 协作）</p>
         <ol className="mt-1 list-decimal space-y-2 pl-5">
           <li>
-            在上方「添加连接」配置实例（密码以 AES-256-GCM 加密保存在本机数据库，不会明文落盘）；
+            在上方「添加连接」配置实例（密码以 AES-256-GCM 加密保存在本机数据库，不会明文落盘，也永不下发给 AI Agent）；
           </li>
-          <li>点「控制台」打开交互面板，输入的命令与回复实时显示；「扫描」用安全 SCAN 摸 key 分布；</li>
-          <li>写命令审批策略下会出现在页面顶部的「待批准命令」，批准后才真正执行，全程落审计。</li>
+          <li>
+            点「控制台」打开会话——会话即授权：AI Agent 只能操作已打开控制台的连接；人可在此交互执行命令，「扫描」用安全 SCAN 摸 key 分布；
+          </li>
+          <li>
+            右上角「AI CLI」一键安装命令行工具（装完重开终端），让 AI Agent 通过 redisctl 操控，如：
+            redisctl scan 连接名 "user:*"；完整用法与审批协议见仓库内 docs/cli.md；
+          </li>
+          <li>
+            写命令审批策略下，Agent 的写命令要先拿预检令牌并征得你确认，重提后进入页面顶部「待批准命令」，你批准后才真正执行（CLI 无法自批自审）；
+          </li>
+          <li>所有命令（含 Agent 发起的）都会在「日志」页回溯，回复加密落库、按天保留。</li>
         </ol>
+        <AgentPrompt
+          text={`redisctl 是本机已安装的命令行工具（不是 MCP），用于在我授权的 Redis 连接上执行命令。先执行 redisctl sessions list 查看可用连接，只操作列出的连接。其余用法执行 redisctl --help 查看。`}
+        />
       </section>
       {editor && (
         <ConnectionDrawer

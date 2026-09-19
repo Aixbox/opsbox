@@ -9,6 +9,7 @@ import {
   QueryError,
   RefreshButton,
   StatusChip,
+  AgentPrompt,
   dateTime,
   type Confirmation,
 } from "~/features/shared";
@@ -152,14 +153,26 @@ export default function SqlPage() {
         ]}
       />
       <section className="rounded-2xl border border-separator bg-surface-secondary p-4 text-sm leading-6 text-muted">
-        <p className="font-medium text-foreground">使用说明</p>
+        <p className="font-medium text-foreground">使用说明（人 + AI Agent 协作）</p>
         <ol className="mt-1 list-decimal space-y-2 pl-5">
           <li>
-            在上方「添加连接」配置实例（密码以 AES-256-GCM 加密保存在本机数据库，不会明文落盘）；
+            在上方「添加连接」配置实例（密码以 AES-256-GCM 加密保存在本机数据库，不会明文落盘，也永不下发给 AI Agent）；
           </li>
-          <li>点「控制台」打开交互面板，输入的 SQL 与结果实时显示；点「执行 SQL」可跑整段脚本并查看表格结果；</li>
-          <li>confirm 写策略下的写操作会出现在页面顶部的「待批准写操作」，批准后才真正执行，全程落审计。</li>
+          <li>
+            点「控制台」打开会话——会话即授权：AI Agent 只能操作已打开控制台的连接；人可在此交互查询，或点「执行 SQL」跑整段脚本；
+          </li>
+          <li>
+            右上角「AI CLI」一键安装命令行工具（装完重开终端），让 AI Agent 通过 sqlctl 查数据，如：
+            sqlctl query 连接名 --json -- "SELECT ... LIMIT 20"；完整用法与审批协议见仓库内 docs/cli.md；
+          </li>
+          <li>
+            confirm 写策略下，Agent 的写 SQL 要先拿预检令牌并征得你确认，重提后进入页面顶部「待批准写操作」，你批准后才真正执行（CLI 无法自批自审）；
+          </li>
+          <li>所有查询（含 Agent 发起的）都会在「日志」页回溯，结果加密落库、按天保留。</li>
         </ol>
+        <AgentPrompt
+          text={`sqlctl 是本机已安装的命令行工具（不是 MCP），用于在我授权的 MySQL/PostgreSQL 连接上执行 SQL。先执行 sqlctl sessions list 查看可用连接，只操作列出的连接。其余用法执行 sqlctl --help 查看。`}
+        />
       </section>
       {editor && (
         <ConnectionDrawer

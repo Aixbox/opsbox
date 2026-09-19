@@ -18,6 +18,7 @@ import {
   QueryError,
   RefreshButton,
   StatusChip,
+  AgentPrompt,
   dateTime,
   type Confirmation,
 } from "~/features/shared";
@@ -196,17 +197,27 @@ function SshPage() {
         ]}
       />
       <section className="rounded-2xl border border-separator bg-surface-secondary p-4 text-sm leading-6 text-muted">
-        <p className="font-medium text-foreground">使用说明</p>
+        <p className="font-medium text-foreground">使用说明（人 + AI Agent 协作）</p>
         <ol className="mt-1 list-decimal space-y-2 pl-5">
           <li>
-            在上方「添加连接」配置服务器（密码或私钥均以 AES-256-GCM 加密保存在本机数据库，不会明文落盘）；
+            在上方「添加连接」配置服务器（密码或私钥均以 AES-256-GCM 加密保存在本机数据库，不会明文落盘，也永不下发给 AI Agent）；
           </li>
           <li>
-            点「终端」打开网页终端；命令执行记录可在「待批准操作」与本机数据库中追溯；
+            点「终端」打开会话——会话即授权：AI Agent 只能操作已打开会话的连接，关掉会话即刻失权；
           </li>
-          <li>逐条审批策略下的操作会出现在页面顶部的「待批准操作」，批准后才真正执行。</li>
+          <li>
+            右上角「AI CLI」一键安装命令行工具（装完重开终端），让 AI Agent（Claude Code 等）通过 sshctl 操控服务器，如：
+            sshctl exec 连接名 -- df -h；完整用法与审批协议见仓库内 docs/cli.md；
+          </li>
+          <li>
+            逐条审批策略下，Agent 的写操作要先拿预检令牌并征得你确认，重提后进入页面顶部「待批准操作」，你批准后才真正执行（CLI 无法自批自审）；
+          </li>
+          <li>每条命令（含 Agent 发起的）都会在「日志」页留痕，输出加密存储、按天保留。</li>
         </ol>
         {pendingCount > 0 && <p className="mt-2 text-xs">待批准操作：{pendingCount} 条</p>}
+        <AgentPrompt
+          text={`sshctl 是本机已安装的命令行工具（不是 MCP），用于在我授权的 SSH 连接上执行命令。先执行 sshctl sessions list 查看可用连接，只操作列出的连接。其余用法执行 sshctl --help 查看。`}
+        />
       </section>
       {editor && (
         <ConnectionDrawer

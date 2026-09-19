@@ -1,5 +1,5 @@
 import { Alert, AlertDialog, Button, Chip, EmptyState, Modal, Spinner, Table } from "@heroui/react";
-import { Inbox, RefreshCw } from "lucide-react";
+import { Copy, Inbox, RefreshCw } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { TableLoadingState } from "~/features/table-loading-state";
 import { TablePagination, type TablePaginationProps } from "~/features/table-pagination";
@@ -352,5 +352,47 @@ export function DetailDialog({
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>
+  );
+}
+
+/** 使用说明卡片里的「复制给 AI Agent 的提示词」：一键复制，用户粘给自己的 Agent 即可按协议操控 */
+export function AgentPrompt({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    const fallback = () => {
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(fallback);
+    } else {
+      fallback();
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium text-foreground">复制给 AI Agent 的提示词</p>
+        <Button size="sm" variant="secondary" onPress={copy}>
+          {copied ? (
+            "已复制"
+          ) : (
+            <>
+              <Copy size={14} aria-hidden="true" />
+              复制
+            </>
+          )}
+        </Button>
+      </div>
+      <pre className="mt-1.5 max-h-72 overflow-auto rounded-lg bg-default p-3 font-mono text-xs leading-5 whitespace-pre-wrap">
+        {text}
+      </pre>
+    </div>
   );
 }

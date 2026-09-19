@@ -1,9 +1,50 @@
 # opsbox
 
-本地单机运维工具箱：把 personal-admin 里「运维工具」（SSH AI 运维）的能力抽成独立桌面应用，
-**不需要部署服务器**，一个 exe 在用户本机运行。
+AI Agent 的本地运维闸门：Windows / macOS 桌面应用，**无需部署服务器**，单进程跑在你自己的电脑上。
+你在窗口里保管服务器连接，AI Agent（Claude Code 等）通过内置 CLI 操控服务器——
+每一条命令都要过 **黑名单拦截 → 审批放行 → 全量审计** 三道闸，Agent 干活，你掌闸。
+
+- **连接由你保管**：SSH / MySQL / Redis 连接存本机 SQLite，凭证 AES-256-GCM 加密，永不下发给 Agent
+- **会话即授权**：Agent 只能操作你打开了终端 / 控制台的连接，关掉会话即刻失权；CLI 自己开不了会话
+- **批准权只在窗口里**：写操作先拿预检令牌、进「待批准」面板由你逐条放行，CLI 无法自批自审
+- **审计可回溯**：命令、状态、耗时、退出码全量落库，输出加密存储、按天保留
 
 技术栈：Wails v2（Go + WebView）· Gin · SQLite（modernc 纯 Go 驱动）· React 19 + HeroUI 3 + Tailwind 4。
+
+## 使用说明
+
+```
+你 ── opsbox 窗口：添加连接 / 打开终端与控制台 / 在「待批准」面板放行或拒绝
+                        │ 应用托盘常驻，本地服务 127.0.0.1:37421
+AI Agent（Claude Code 等）
+   │ Bash 调用 sshctl / sqlctl / redisctl（无状态、无登录、自动发现服务端口）
+   ▼
+opsbox 本地服务 ── 黑名单（shell 语法树 + 自定义正则）→ 审批队列 → 审计落库
+   ▼
+SSH / MySQL / Redis 服务器
+```
+
+**五步接入一个 Agent：**
+
+1. 启动 opsbox，在「连接」页添加 SSH / 数据库 / Redis 连接
+2. 打开该连接的终端或控制台会话（**不开会话 = Agent 无权操作该连接**）
+3. 右上角「AI CLI」→ 一键安装（CLI 写入 PATH，装完重开终端生效）
+4. 告诉你的 Agent：**先读一遍 [docs/cli.md](docs/cli.md) 再干活**——CLI 安装、退出码约定、审批协议、三个命令的完整用法全在里面
+5. Agent 提出写操作时会带预检令牌请求确认，你在「待批准」面板放行；每条命令都能在「日志」页回溯
+
+一次典型协作（SSH 为例）：
+
+```bash
+sshctl exec prod -- df -h
+# Agent 日常巡检：只读命令直接执行，退出码 0
+
+sshctl exec prod -- "sudo systemctl restart nginx"
+# 确认策略下的写操作：被拒（退出码 5）+ 返回预检令牌
+# Agent 必须向你完整展示这条命令并取得确认，不得改写绕过
+
+sshctl exec prod --confirm-token <令牌> -- "sudo systemctl restart nginx"
+# 确认后原样重提 → 进入待批准队列 → 你在 opsbox 窗口点「批准」→ 命令才真正执行
+```
 
 ## 架构
 
