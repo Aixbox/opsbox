@@ -29,9 +29,9 @@ func TestTakeOverDir(t *testing.T) {
 
 	t.Run("removes directory when emptied", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "sshctl.exe"), "x")
-		writeFile(t, filepath.Join(dir, "sqlctl.exe"), "x")
-		writeFile(t, filepath.Join(dir, "redisctl.exe"), "x")
+		for _, name := range cliNames {
+			writeFile(t, filepath.Join(dir, name), "x")
+		}
 
 		if err := takeOverDir(dir); err != nil {
 			t.Fatalf("takeOverDir: %v", err)
@@ -59,11 +59,11 @@ func writeFile(t *testing.T, path, content string) {
 // TestCurrentConflictsDedup 用桩目录验证冲突扫描的去重与排除安装目录。
 func TestCurrentConflictsDedup(t *testing.T) {
 	dirA := t.TempDir()
-	writeFile(t, filepath.Join(dirA, "sshctl.exe"), "x")
+	writeFile(t, filepath.Join(dirA, cliNames[0]), "x")
 
-	// currentConflicts 扫描用户 PATH（真实注册表），这里仅验证 dirHasCLI 与去重辅助逻辑
+	// currentConflicts 扫描用户 PATH（平台实现），这里仅验证 dirHasCLI 与去重辅助逻辑
 	if !dirHasCLI(dirA) {
-		t.Fatal("dir with sshctl.exe must be detected as conflict dir")
+		t.Fatal("dir with a bundled cli must be detected as conflict dir")
 	}
 	empty := t.TempDir()
 	if dirHasCLI(empty) {

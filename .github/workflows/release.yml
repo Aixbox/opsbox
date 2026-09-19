@@ -1,0 +1,90 @@
+name: Release
+
+# 推送 v* 标签 → 双平台各出「免安装版 + 安装版」并发布 GitHub Release；
+# workflow_dispatch 手动触发 → 仅构建并上传 artifact（不发版）。
+#
+# Release 资产（<version> = 标签名，如 v0.3.0）：
+#   opsbox-<version>-windows-portable.zip    Windows 免安装版（单 exe 全自包含）
+#   opsbox-<version>-windows-installer.exe   Windows 安装版（NSIS）
+#   opsbox-<version>-macos-portable.zip      macOS 免安装版（.app zip，解压即用）
+#   opsbox-<version>-macos.dmg               macOS 安装版（拖拽安装，universal）
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+
+      # Wails 在 makensis 缺失时只警告并静默跳过安装包生成，必须显式安装。
+      # GITHUB_PATH 对后续步骤生效，保证 wails / build-all.ps1 能在 PATH 找到 makensis。
+      - name: Install NSIS (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          Add-Content $env:GITHUB_PATH 'C:\Program Files (x86)\NSIS'
+
+      - name: Build Windows (portable + installer)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/build-all.ps1 -Version '${{ github.ref_name }}' -NSIS
+
+      - name: Build macOS (DMG + portable zip)
+        if: matrix.platform == 'macos'
+        run: scripts/build-all.sh '${{ github.ref_name }}'
+
+      - name: Collect artifacts (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build/bin/opsbox-*-windows-installer.exe dist/
+          Copy-Item build/bin/opsbox-*-windows-portable.zip dist/
+          Get-ChildItem dist
+
+      - name: Collect artifacts (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          mkdir -p dist
+          cp build/dmg/opsbox-*-macos.dmg dist/
+          cp build/dmg/opsbox-*-macos-portable.zip dist/
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opsbox-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

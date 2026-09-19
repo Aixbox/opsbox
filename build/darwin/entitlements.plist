@@ -1,0 +1,12 @@
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <!-- 非 App Store 分发：不开沙盒（托盘、LaunchAgent 自启、任意路径文件访问都需要） -->
+        <key>com.apple.security.app-sandbox</key>
+        <false/>
+        <key>com.apple.security.network.client</key>
+        <true/>
+        <key>com.apple.security.network.server</key>
+        <true/>
+    </dict>
+</plist>

@@ -1,12 +1,18 @@
-# Full release build for opsbox:
+# Full release build for opsbox (Windows):
 #   1. Build CLIs (sshctl / sqlctl / redisctl) into internal/climgr/clis (go:embed source)
 #   2. Run `wails build` so the desktop exe embeds them (in-app one-click install)
+#   3. Optional -NSIS (release mode): additionally build the installer (setup exe)
+#      and the portable zip (免安装版), both named with the version
+#
+# macOS 对应脚本：scripts/build-all.sh（universal .app + DMG 安装版 + portable 免安装版）。
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1 -Version 0.2.0
+#   powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1 -Version 0.2.0 -NSIS
 param(
-    [string]$Version = ""
+    [string]$Version = "",
+    [switch]$NSIS
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,10 +48,35 @@ if (-not $wails) { Write-Error 'wails not found (install with: go install github
 Write-Output "wails build (version $Version)"
 Push-Location $root
 try {
-    & $wails.Source build -ldflags "-X main.appVersion=$Version"
+    $wailsArgs = @('build', '-ldflags', "-X main.appVersion=$Version")
+    if ($NSIS) { $wailsArgs += '-nsis' }
+    & $wails.Source @wailsArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } finally {
     Pop-Location
 }
 
 Write-Output "done: build\bin\opsbox.exe (CLIs embedded: $Version)"
+
+# 3) Release packaging (-NSIS)：安装版 + 免安装版，文件名带版本号。
+#    注意：Wails 找不到 makensis 时只打警告并静默跳过安装包生成，这里提前校验，
+#    避免 CI 上构建"成功"却没有安装包的假成功。
+if ($NSIS) {
+    $binDir = Join-Path $root 'build\bin'
+    $rawInstaller = Join-Path $binDir 'opsbox-amd64-installer.exe'
+    $installer = Join-Path $binDir "opsbox-$Version-windows-installer.exe"
+    $portableZip = Join-Path $binDir "opsbox-$Version-windows-portable.zip"
+
+    if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+        Write-Error 'makensis not found on PATH: wails would silently skip the installer. Install NSIS first (e.g. choco install nsis).'
+        exit 1
+    }
+    if (-not (Test-Path $rawInstaller)) { Write-Error "installer missing after wails build: $rawInstaller"; exit 1 }
+    Move-Item -Force $rawInstaller $installer
+
+    # 免安装版：单 exe 全自包含（CLI 已内嵌），zip 打包避免浏览器拦截裸 exe 下载
+    Compress-Archive -Force -Path (Join-Path $binDir 'opsbox.exe') -DestinationPath $portableZip
+
+    Write-Output "done: $installer (CLIs embedded: $Version)"
+    Write-Output "done: $portableZip (CLIs embedded: $Version)"
+}

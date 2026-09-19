@@ -1,6 +1,7 @@
 # 构建产物
 frontend/dist/
 build/bin/
+build/dmg/
 
 # 依赖与工具链
 node_modules/
@@ -21,6 +22,6 @@ frontend/package.json.md5
 # CLI 构建产物
 bin/
 
-# CLI 嵌入构建产物（方案讨论中）
-internal/climgr/clis/*.exe
-internal/climgr/clis/VERSION
+# CLI 嵌入构建产物（Windows exe / mac universal 裸名二进制；README.md 是 embed 占位，保留）
+internal/climgr/clis/*
+!internal/climgr/clis/README.md

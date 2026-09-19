@@ -1,7 +1,9 @@
-//go:build !windows
+//go:build !windows && !darwin
 
-// Package singleinstance 的非 Windows 实现：类 Unix 平台暂无单实例约束（当前产品仅发布 Windows）。
 package singleinstance
 
-// Acquire 恒返回 true。
-func Acquire() bool { return true }
+// 非 Windows/macOS 平台（仅 CLI 开发环境，不发布桌面包）无单实例约束。
+
+func tryLock() bool { return true }
+
+func alertAlreadyRunning() {}
