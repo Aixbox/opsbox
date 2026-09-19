@@ -2,6 +2,9 @@ name: CI
 
 # push 到 main / PR / 手动触发 → 静态检查 + 全量测试 + 前端构建。
 # 发布构建见 release.yml（tag 触发，双平台）。
+#
+# 前端构建必须先于 Go 检查：main.go 的 go:embed all:frontend/dist
+# 要求 dist 目录存在，缺失时 go vet/test 直接编译失败。
 on:
   push:
     branches: [main]
@@ -17,6 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend build (tsc + vite)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -29,15 +44,3 @@ jobs:
 
       - name: go test
         run: go test ./...
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Frontend build (tsc + vite)
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
