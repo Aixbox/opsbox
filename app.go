@@ -122,6 +122,22 @@ func (a *App) showWindow(ctx context.Context) {
 	wailsruntime.WindowShow(ctx)
 }
 
+// ---- 自定义标题栏的窗口控制绑定（无边框模式下系统标题栏按钮不再存在）----
+
+// WindowMinimise 最小化窗口。
+func (a *App) WindowMinimise() { wailsruntime.WindowMinimise(a.ctx) }
+
+// WindowToggleMaximise 最大化/还原窗口。
+func (a *App) WindowToggleMaximise() { wailsruntime.WindowToggleMaximise(a.ctx) }
+
+// WindowIsMaximised 报告窗口是否最大化（标题栏据此切换最大化/还原图标）。
+func (a *App) WindowIsMaximised() bool { return wailsruntime.WindowIsMaximised(a.ctx) }
+
+// WindowClose 关闭窗口。pkg/runtime 未暴露 WindowClose，而系统 X 按钮的
+// onClose 事件同样汇入 Frontend.Quit()，且 OnBeforeClose 正是在 Quit 里检查，
+// 因此这里用 Quit 实现：仍按设置页「关闭窗口时」决定隐藏到托盘还是真正退出。
+func (a *App) WindowClose() { wailsruntime.Quit(a.ctx) }
+
 // beforeClose 拦截窗口关闭，行为由设置页的「关闭窗口时」决定：
 // tray（默认）= 隐藏到托盘，本地服务保持运行（CLI 可用）；exit = 直接退出。
 // 托盘「退出」先置 quitting 再 Quit，此时放行真正关闭。

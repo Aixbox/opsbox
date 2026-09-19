@@ -34,6 +34,10 @@ function bindings(): {
   GetAppSettings?: () => Promise<AppSettings>;
   SetCloseAction?: (action: string) => Promise<void>;
   SetAutostart?: (enable: boolean) => Promise<void>;
+  WindowMinimise?: () => Promise<void>;
+  WindowToggleMaximise?: () => Promise<void>;
+  WindowIsMaximised?: () => Promise<boolean>;
+  WindowClose?: () => Promise<void>;
 } | undefined {
   return (window as unknown as { go?: { main?: { App?: Record<string, () => Promise<unknown>> } } })
     .go?.main?.App as never;
@@ -82,5 +86,28 @@ export const desktopApi = {
     const call = bindings()?.SetAutostart;
     if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
     await call(enable);
+  },
+
+  // ---- 自定义标题栏的窗口控制 ----
+
+  async windowMinimise(): Promise<void> {
+    const call = bindings()?.WindowMinimise;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    await call();
+  },
+  async toggleWindowMaximise(): Promise<void> {
+    const call = bindings()?.WindowToggleMaximise;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    await call();
+  },
+  async isWindowMaximised(): Promise<boolean> {
+    const call = bindings()?.WindowIsMaximised;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    return call();
+  },
+  async closeWindow(): Promise<void> {
+    const call = bindings()?.WindowClose;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    await call();
   },
 };

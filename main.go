@@ -30,6 +30,9 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 255},
+		// 无边框窗口：系统标题栏由前端自定义 TitleBar 组件替代（拖拽/最小化/最大化/关闭），
+		// 边缘缩放由 Wails 自动启用（frameless 且未设 DisableResize 时）。
+		Frameless:      true,
 		OnStartup:      app.startup,
 		OnBeforeClose:  app.beforeClose,
 		OnShutdown:     app.shutdown,

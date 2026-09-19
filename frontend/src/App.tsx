@@ -1,10 +1,11 @@
 import { Tabs } from "@heroui/react";
 import { Button } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Settings2, TerminalSquare } from "lucide-react";
+import { Plus, Settings2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { AppSettingsDialog } from "~/features/app-settings-dialog";
 import { CliDialog } from "~/features/cli-dialog";
+import { TitleBar } from "~/features/title-bar";
 import SshLogsPage from "~/features/ssh-logs-page";
 import SqlLogsPage from "~/features/sql-logs-page";
 import RedisLogsPage from "~/features/redis-logs-page";
@@ -82,7 +83,7 @@ function SshPage() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-6 py-8">
       <div className="min-w-0 space-y-6">
         <PageHeader
           title="SSH 管理"
@@ -257,56 +258,47 @@ function ModulePanel({ label, main, logs }: { label: string; main: ReactNode; lo
   );
 }
 
-// opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换；顶部「AI CLI」管理命令行入口，「设置」管理关窗行为与开机自启。
+// opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换；
+// 顶部为自定义标题栏（拖拽 / 最小化 / 最大化 / 关闭 + 「AI CLI」「设置」入口），
+// 无边框窗口下标题栏通栏置顶，内容区独立滚动。
 export default function App() {
   const [tab, setTab] = useState("ssh");
   const [showCli, setShowCli] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   return (
-    <div className="mx-auto min-h-screen max-w-6xl px-6 py-8">
-      <header className="flex items-center justify-between gap-4">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight">opsbox</span>
-          <span className="text-xs text-muted">本地运维工具箱 · SSH / 数据库 / Redis</span>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <TitleBar onOpenSettings={() => setShowSettings(true)} onOpenCli={() => setShowCli(true)} />
+      <main className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-6xl px-6 py-8">
+          <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="运维模块">
+                <Tabs.Tab id="ssh" className="whitespace-nowrap">
+                  SSH
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="sql" className="whitespace-nowrap">
+                  数据库
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="redis" className="whitespace-nowrap">
+                  Redis
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
+            <Tabs.Panel id="ssh" className="pt-5">
+              <ModulePanel label="SSH" main={<SshPage />} logs={<SshLogsPage />} />
+            </Tabs.Panel>
+            <Tabs.Panel id="sql" className="pt-5">
+              <ModulePanel label="数据库" main={<SqlPage />} logs={<SqlLogsPage />} />
+            </Tabs.Panel>
+            <Tabs.Panel id="redis" className="pt-5">
+              <ModulePanel label="Redis" main={<RedisPage />} logs={<RedisLogsPage />} />
+            </Tabs.Panel>
+          </Tabs>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onPress={() => setShowSettings(true)}>
-            <Settings2 size={16} aria-hidden="true" />
-            设置
-          </Button>
-          <Button variant="secondary" onPress={() => setShowCli(true)}>
-            <TerminalSquare size={16} aria-hidden="true" />
-            AI CLI
-          </Button>
-        </div>
-      </header>
-      <Tabs className="mt-4" selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
-        <Tabs.ListContainer>
-          <Tabs.List aria-label="运维模块">
-            <Tabs.Tab id="ssh" className="whitespace-nowrap">
-              SSH
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="sql" className="whitespace-nowrap">
-              数据库
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="redis" className="whitespace-nowrap">
-              Redis
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
-        <Tabs.Panel id="ssh" className="pt-5">
-          <ModulePanel label="SSH" main={<SshPage />} logs={<SshLogsPage />} />
-        </Tabs.Panel>
-        <Tabs.Panel id="sql" className="pt-5">
-          <ModulePanel label="数据库" main={<SqlPage />} logs={<SqlLogsPage />} />
-        </Tabs.Panel>
-        <Tabs.Panel id="redis" className="pt-5">
-          <ModulePanel label="Redis" main={<RedisPage />} logs={<RedisLogsPage />} />
-        </Tabs.Panel>
-      </Tabs>
+      </main>
       {showCli && <CliDialog onClose={() => setShowCli(false)} />}
       {showSettings && <AppSettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
