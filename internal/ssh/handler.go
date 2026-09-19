@@ -62,6 +62,9 @@ func (h *Handler) RegisterRoutes(group *gin.RouterGroup) {
 	g.POST("/connections/:id/sessions/:sid/resize", h.resizeSession)
 	g.POST("/connections/:id/sessions/:sid/rename", h.renameSession)
 	g.DELETE("/connections/:id/sessions/:sid", h.closeSession)
+	// WebSocket 端点：浏览器握手带不了 Authorization，凭一次性 ticket 鉴权。
+	// 原项目因「公开路由」而单独注册，本地单用户无鉴权差异，直接并入（与 sql/redis 一致）。
+	g.GET("/connections/:id/sessions/:sid/ws", h.sessionWS)
 	g.GET("/commands/:id", h.getCommand)
 	g.GET("/pending-commands", h.listPending)
 	g.POST("/commands/:id/approve", h.approve)
@@ -69,11 +72,6 @@ func (h *Handler) RegisterRoutes(group *gin.RouterGroup) {
 	g.GET("/exec-logs", h.listLogs)
 	g.GET("/settings", h.getSettings)
 	g.PUT("/settings", h.updateSettings)
-}
-
-// RegisterPublicRoutes 注册 WebSocket 端点：浏览器握手带不了 Authorization，凭一次性 ticket 鉴权。
-func (h *Handler) RegisterPublicRoutes(group *gin.RouterGroup) {
-	group.GET("/ssh/connections/:id/sessions/:sid/ws", h.sessionWS)
 }
 
 // ---- helpers ----
