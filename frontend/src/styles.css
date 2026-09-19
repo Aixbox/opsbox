@@ -124,6 +124,34 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * 模块内二级视图切换（连接 / 日志）紧凑样式
+ *
+ * ModulePanel 的「连接 / 日志」与主导航（SSH / 数据库 / Redis）同为 HeroUI Tabs
+ * 默认尺寸（tab h-8 text-sm、list p-1、容器撑满整行），二级控件与一级导航等大，
+ * 视觉层级不清。根元素加 .tabs--sub 整体缩小一号：tab h-7 text-xs px-3.5、
+ * list p-0.5、容器 w-max 仅随内容收缩（不再撑满整行）。圆角保持同心：
+ * 容器 18px = list 2px(p-0.5) + tab 16px(rounded-2xl)。
+ * ------------------------------------------------------------------------- */
+.tabs--sub {
+  > .tabs__list-container {
+    @apply w-max;
+    border-radius: 18px;
+
+    .tabs__list {
+      @apply p-0.5;
+    }
+
+    .tabs__tab {
+      @apply h-7 rounded-2xl px-3.5 text-xs;
+    }
+
+    .tabs__indicator {
+      @apply rounded-2xl;
+    }
+  }
+}
+
 /* Chip soft 变体统一使用与标签页选中态一致的 12% 底色浓度。 */
 .chip--soft.chip--accent {
   --chip-bg: color-mix(in oklab, var(--accent) 12%, transparent);
