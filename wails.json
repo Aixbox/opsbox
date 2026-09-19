@@ -11,7 +11,7 @@
   },
   "info": {
     "productName": "opsbox",
-    "productVersion": "0.1.0",
+    "productVersion": "0.1.1",
     "copyright": "Copyright © 2026 opsbox",
     "comments": "本地运维工具箱：SSH / 数据库 / Redis"
   }
