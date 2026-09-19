@@ -3,6 +3,7 @@ import { Button } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Settings2, TerminalSquare } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { AppSettingsDialog } from "~/features/app-settings-dialog";
 import { CliDialog } from "~/features/cli-dialog";
 import SshLogsPage from "~/features/ssh-logs-page";
 import SqlLogsPage from "~/features/sql-logs-page";
@@ -256,10 +257,11 @@ function ModulePanel({ label, main, logs }: { label: string; main: ReactNode; lo
   );
 }
 
-// opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换；顶部「AI CLI」管理命令行入口。
+// opsbox 运维工具箱：SSH / 数据库 / Redis 三个模块共用一个本地服务，Tabs 切换；顶部「AI CLI」管理命令行入口，「设置」管理关窗行为与开机自启。
 export default function App() {
   const [tab, setTab] = useState("ssh");
   const [showCli, setShowCli] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   return (
     <div className="mx-auto min-h-screen max-w-6xl px-6 py-8">
       <header className="flex items-center justify-between gap-4">
@@ -267,10 +269,16 @@ export default function App() {
           <span className="text-lg font-semibold tracking-tight">opsbox</span>
           <span className="text-xs text-muted">本地运维工具箱 · SSH / 数据库 / Redis</span>
         </div>
-        <Button variant="secondary" onPress={() => setShowCli(true)}>
-          <TerminalSquare size={16} aria-hidden="true" />
-          AI CLI
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onPress={() => setShowSettings(true)}>
+            <Settings2 size={16} aria-hidden="true" />
+            设置
+          </Button>
+          <Button variant="secondary" onPress={() => setShowCli(true)}>
+            <TerminalSquare size={16} aria-hidden="true" />
+            AI CLI
+          </Button>
+        </div>
       </header>
       <Tabs className="mt-4" selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
         <Tabs.ListContainer>
@@ -300,6 +308,7 @@ export default function App() {
         </Tabs.Panel>
       </Tabs>
       {showCli && <CliDialog onClose={() => setShowCli(false)} />}
+      {showSettings && <AppSettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

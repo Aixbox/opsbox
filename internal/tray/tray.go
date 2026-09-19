@@ -15,3 +15,7 @@ func Autostart() bool { return autostartEnabled() }
 
 // SetAutostart 注册/注销开机自启（登录后自动运行 opsbox）。
 func SetAutostart(enable bool) error { return setAutostart(enable) }
+
+// SyncAutostart 同步托盘菜单「开机自启」的勾选状态。
+// 注册表是唯一状态源，宿主（设置页）改完注册表后调用，托盘菜单据此刷新。
+func SyncAutostart(enabled bool) { syncAutostart(enabled) }

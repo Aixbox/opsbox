@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"opsbox/internal/api"
@@ -25,19 +26,33 @@ import (
 // appVersion 由构建注入（wails build -ldflags "-X main.appVersion=…"），与内嵌 CLI 同版本。
 var appVersion = "dev"
 
+// 关窗行为取值：点 X 是收到托盘还是直接退出（应用设置页可改）。
+const (
+	closeActionTray = "tray"
+	closeActionExit = "exit"
+)
+
 // App 是 Wails 绑定对象：生命周期管理 + 给前端暴露少量元信息。
 type App struct {
 	ctx      context.Context
 	server   *api.Server
 	dataDir  string
 	quitting bool
+
+	// cfgMu 保护 cfg（含 closeAction）：beforeClose 由 Wails 线程读，
+	// SetCloseAction 由前端绑定调用写，并发发生。
+	cfgMu   sync.Mutex
+	cfg     config
+	cfgPath string
 }
 
 func NewApp() *App { return &App{} }
 
-// config 是持久化在数据目录里的本地配置（当前只有加密密钥）。
+// config 是持久化在数据目录里的本地配置：加密密钥 + 应用偏好。
 type config struct {
 	Secret string `json:"secret"`
+	// CloseAction 点 X 关窗行为："tray"（默认，隐藏到托盘）或 "exit"（退出应用）。
+	CloseAction string `json:"closeAction,omitempty"`
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -49,12 +64,14 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.dataDir = dataDir
+	a.cfgPath = filepath.Join(dataDir, "config.json")
 
-	cfg, err := loadConfig(filepath.Join(dataDir, "config.json"))
+	cfg, err := loadConfig(a.cfgPath)
 	if err != nil {
 		log.Error("load config", "error", err)
 		return
 	}
+	a.cfg = cfg
 	cipher, err := security.NewTokenCipher(cfg.Secret)
 	if err != nil {
 		log.Error("create cipher", "error", err)
@@ -79,7 +96,9 @@ func (a *App) startup(ctx context.Context) {
 			log.Error("api server exited", "error", err)
 		}
 	}()
-	server.RunBackground(ctx)
+	// RunBackground 内部是三个永不返回的后台循环（会话回收等），
+	// 必须异步启动：同步调用会卡死 startup，导致托盘/发现文件永远不初始化。
+	go server.RunBackground(ctx)
 	a.server = server
 	// 二启进程经 POST /ui/show 唤出窗口（Docker Desktop 行为：再点一次 exe = 弹窗口）
 	server.SetShowUI(func() { a.showWindow(ctx) })
@@ -103,14 +122,25 @@ func (a *App) showWindow(ctx context.Context) {
 	wailsruntime.WindowShow(ctx)
 }
 
-// beforeClose 拦截窗口关闭：点 X = 隐藏到托盘，本地服务保持运行（CLI 可用）。
+// beforeClose 拦截窗口关闭，行为由设置页的「关闭窗口时」决定：
+// tray（默认）= 隐藏到托盘，本地服务保持运行（CLI 可用）；exit = 直接退出。
 // 托盘「退出」先置 quitting 再 Quit，此时放行真正关闭。
 func (a *App) beforeClose(ctx context.Context) bool {
-	if a.quitting {
+	if a.quitting || a.closeAction() == closeActionExit {
 		return false
 	}
 	wailsruntime.WindowHide(ctx)
 	return true
+}
+
+// closeAction 读取当前关窗行为（未加载配置时按默认 tray 处理）。
+func (a *App) closeAction() string {
+	a.cfgMu.Lock()
+	defer a.cfgMu.Unlock()
+	if a.cfg.CloseAction == closeActionExit {
+		return closeActionExit
+	}
+	return closeActionTray
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -179,6 +209,42 @@ func (a *App) UninstallCLIs() (climgr.Status, error) { return climgr.Uninstall()
 // TakeOverConflicts 清理用户 PATH 中遮蔽 opsbox 命令的旧版同名 CLI（如旧平台 padmin）。
 func (a *App) TakeOverConflicts() (climgr.Status, error) { return climgr.TakeOverConflicts() }
 
+// AppSettings 应用偏好（设置页展示）。
+type AppSettings struct {
+	// CloseAction 点 X 关窗行为："tray" 隐藏到托盘 / "exit" 退出应用。
+	CloseAction string `json:"closeAction"`
+	// Autostart 是否已注册开机自启（读注册表实际状态，与托盘菜单同一开关）。
+	Autostart bool `json:"autostart"`
+}
+
+// GetAppSettings 读取应用偏好。
+func (a *App) GetAppSettings() AppSettings {
+	return AppSettings{CloseAction: a.closeAction(), Autostart: tray.Autostart()}
+}
+
+// SetCloseAction 设置点 X 关窗行为并持久化到 config.json，即时生效（下次关窗即按新值走）。
+func (a *App) SetCloseAction(action string) error {
+	if action != closeActionTray && action != closeActionExit {
+		return fmt.Errorf("未知的关闭行为: %q", action)
+	}
+	a.cfgMu.Lock()
+	defer a.cfgMu.Unlock()
+	if a.cfgPath == "" {
+		return errors.New("配置尚未加载")
+	}
+	a.cfg.CloseAction = action
+	return saveConfig(a.cfgPath, a.cfg)
+}
+
+// SetAutostart 注册/注销开机自启（HKCU Run），并同步托盘菜单勾选。
+func (a *App) SetAutostart(enable bool) error {
+	if err := tray.SetAutostart(enable); err != nil {
+		return err
+	}
+	tray.SyncAutostart(enable)
+	return nil
+}
+
 // ensureDataDir 返回（并创建）数据目录：<UserConfigDir>/opsbox。
 func ensureDataDir() (string, error) {
 	base, err := os.UserConfigDir()
@@ -190,6 +256,19 @@ func ensureDataDir() (string, error) {
 		return "", err
 	}
 	return dir, nil
+}
+
+// saveConfig 把配置原子写回数据目录（先写临时文件再替换，避免写坏密钥文件）。
+func saveConfig(path string, cfg config) error {
+	encoded, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, encoded, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // loadConfig 读取配置；密钥缺失时生成一次性随机密钥并保存。
@@ -208,11 +287,7 @@ func loadConfig(path string) (config, error) {
 			return cfg, err
 		}
 		cfg.Secret = base64.RawURLEncoding.EncodeToString(seed)
-		encoded, err := json.MarshalIndent(cfg, "", "  ")
-		if err != nil {
-			return cfg, err
-		}
-		if err := os.WriteFile(path, encoded, 0o600); err != nil {
+		if err := saveConfig(path, cfg); err != nil {
 			return cfg, err
 		}
 	default:

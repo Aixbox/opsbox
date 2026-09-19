@@ -11,3 +11,5 @@ func Stop() {}
 func autostartEnabled() bool { return false }
 
 func setAutostart(bool) error { return nil }
+
+func syncAutostart(bool) {}

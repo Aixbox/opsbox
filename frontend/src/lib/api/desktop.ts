@@ -18,12 +18,22 @@ export interface CliStatus {
   conflicts?: string[];
 }
 
+export interface AppSettings {
+  /** 点 X 关窗行为：tray = 隐藏到系统托盘（服务保持运行）；exit = 退出应用 */
+  closeAction: "tray" | "exit";
+  /** 是否已注册开机自启（HKCU Run，与托盘菜单同一开关） */
+  autostart: boolean;
+}
+
 function bindings(): {
   CLIStatus?: () => Promise<CliStatus>;
   InstallCLIs?: () => Promise<CliStatus>;
   UninstallCLIs?: () => Promise<CliStatus>;
   TakeOverConflicts?: () => Promise<CliStatus>;
   DataDir?: () => Promise<string>;
+  GetAppSettings?: () => Promise<AppSettings>;
+  SetCloseAction?: (action: string) => Promise<void>;
+  SetAutostart?: (enable: boolean) => Promise<void>;
 } | undefined {
   return (window as unknown as { go?: { main?: { App?: Record<string, () => Promise<unknown>> } } })
     .go?.main?.App as never;
@@ -57,5 +67,20 @@ export const desktopApi = {
     const call = bindings()?.DataDir;
     if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
     return call();
+  },
+  async appSettings(): Promise<AppSettings> {
+    const call = bindings()?.GetAppSettings;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    return call();
+  },
+  async setCloseAction(action: "tray" | "exit"): Promise<void> {
+    const call = bindings()?.SetCloseAction;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    await call(action);
+  },
+  async setAutostart(enable: boolean): Promise<void> {
+    const call = bindings()?.SetAutostart;
+    if (!call) throw new Error("桌面绑定不可用（请在 opsbox 窗口内使用）");
+    await call(enable);
   },
 };

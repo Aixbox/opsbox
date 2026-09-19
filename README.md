@@ -50,7 +50,7 @@ wails build                     # 出包 build/bin/opsbox.exe
 - [x] 执行日志页面（SSH / SQL / Redis 三模块日志审计）
 - [x] SQL / Redis 运维模块（连接 / 控制台 / 日志 / 待批队列）
 - [x] 本机 CLI 三件套（sshctl / sqlctl / redisctl，见 docs/cli.md）——AI 通过 Bash 调用，审批预检协议与退出码同原版
-- [x] 系统托盘常驻（点 X 收起到托盘，服务保持运行；托盘单击唤回窗口）+ 开机自启（托盘菜单开关，HKCU Run）
+- [x] 系统托盘常驻（点 X 收起到托盘，服务保持运行；托盘单击唤回窗口）+ 开机自启（托盘菜单 / 设置页开关，HKCU Run）+ 设置页（关窗行为：托盘 / 退出，config.json 持久化）
 - [ ] goreleaser 交叉编译
 
 ## CLI
