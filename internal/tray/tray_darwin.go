@@ -26,10 +26,8 @@ var hooks Hooks
 func Start(h Hooks) error {
 	hooks = h
 	startLoop(func() error {
-		// darwin 下 SetIcon 直接接收内存图像数据（PNG 即可，无需落盘）。
-		if err := systray.SetIcon(iconPNG); err != nil {
-			return err
-		}
+		// darwin 下 SetIcon 直接接收内存图像数据（PNG 即可，无需落盘）。无返回值。
+		systray.SetIcon(iconPNG)
 		slog.Info("tray: icon registered")
 		return nil
 	}, "登录 macOS 后自动运行 opsbox")
