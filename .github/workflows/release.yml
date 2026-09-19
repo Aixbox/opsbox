@@ -57,7 +57,8 @@ jobs:
 
       - name: Build macOS (DMG + portable zip)
         if: matrix.platform == 'macos'
-        run: scripts/build-all.sh '${{ github.ref_name }}'
+        # 用 bash 调用，避免脚本执行位在 Windows 上提交时丢失导致 Permission denied
+        run: bash scripts/build-all.sh '${{ github.ref_name }}'
 
       - name: Collect artifacts (Windows)
         if: matrix.platform == 'windows'
