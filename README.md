@@ -5,6 +5,7 @@
 **AI Agent 的本地运维闸门 —— Agent 干活，你掌闸**
 
 [![Release](https://img.shields.io/github/v/release/Aixbox/opsbox?logo=github)](https://github.com/Aixbox/opsbox/releases)
+[![CI](https://github.com/Aixbox/opsbox/actions/workflows/ci.yml/badge.svg)](https://github.com/Aixbox/opsbox/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
 
@@ -114,6 +115,8 @@ wails build                     # 出包 build/bin/opsbox.exe（Windows）
 | macOS | `scripts/build-all.sh [v0.2.0]` | 安装版 `build/dmg/opsbox-<版本>-macos.dmg` + 免安装版 `build/dmg/opsbox-<版本>-macos-portable.zip`（universal：Apple Silicon + Intel） |
 
 两个脚本都会先构建三个 CLI 内嵌进应用。macOS 构建必须在 mac 上进行（Wails 依赖 macOS SDK，无法从 Windows 交叉编译）；Windows 上拿不到 mac 时，推送 `v*` 标签即可由 GitHub Actions（`.github/workflows/release.yml`）在 windows + macos 双平台上自动出包并发布 Release。
+
+推送 / PR 会触发 CI（`.github/workflows/ci.yml`）：`go vet`、`staticcheck`、`go test ./...`、前端 `tsc + vite` 构建，保证测试与静态检查在合并前跑过。
 
 ## 路线
 

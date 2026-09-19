@@ -107,23 +107,6 @@ type healthInfo struct {
 	Version string `json:"version"`
 }
 
-// verifyOpsbox 探测 base 上的 /healthz 并校验是 opsbox 服务。
-func verifyOpsbox(base string, probe *http.Client) bool {
-	response, err := probe.Get(base + "/healthz")
-	if err != nil {
-		return false
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return false
-	}
-	var info healthInfo
-	if err := json.NewDecoder(io.LimitReader(response.Body, 4<<10)).Decode(&info); err != nil {
-		return false
-	}
-	return info.App == "opsbox"
-}
-
 // discoveryFilePath 是桌面应用启动时写下的端口发现文件（<UserConfigDir>/opsbox/server.json）。
 type discoveryFilePath struct {
 	Port    int    `json:"port"`

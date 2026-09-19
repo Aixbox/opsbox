@@ -99,10 +99,3 @@ export function tokenizeCommand(line: string): string[] {
   if (started) tokens.push(current);
   return tokens;
 }
-
-/** 把参数还原成一行可读的命令（用于历史回填与日志展示）。 */
-export function formatCommand(args: string[]): string {
-  return args
-    .map((arg) => (/[\s"']/.test(arg) ? `"${arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : arg))
-    .join(" ");
-}

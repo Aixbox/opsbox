@@ -19,11 +19,6 @@ func NewRandomToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(value), nil
 }
 
-func HashToken(token string) []byte {
-	hash := sha256.Sum256([]byte(token))
-	return hash[:]
-}
-
 type TokenCipher struct {
 	aead    cipher.AEAD
 	hmacKey []byte

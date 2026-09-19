@@ -287,6 +287,65 @@ func TestUIShow(t *testing.T) {
 	}
 }
 
+// TestWSEndpointsRegistered 验证：三模块的 WS 端点都已注册、凭 ticket 鉴权。
+// 用伪造 ticket 请求 /ws，应到达 handler 并被鉴权拒绝（403/409），而不是 404（路由没注册）。
+// 回归背景：SSH 的 WS 路由曾注册在从未被调用的方法里，终端一律「会话已结束」，
+// 前端兜底文案掩盖了 404 真相——本测试确保这类问题在 CI 就暴露。
+// 普通 GET 即可：ticket 校验先于 WebSocket 升级，不需要带 Upgrade 头。
+func TestWSEndpointsRegistered(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer db.Close()
+	cipher, err := security.NewTokenCipher("test-secret")
+	if err != nil {
+		t.Fatalf("cipher: %v", err)
+	}
+	server, err := New(db, cipher, slog.Default(), "test")
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	if err := server.Listen(0); err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = server.Serve() }()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	base := "http://127.0.0.1:" + itoa(server.Port())
+
+	cases := []struct {
+		name string
+		path string
+		want int
+	}{
+		{"SSH 终端 WS", "/api/v1/ssh/connections/1/sessions/1/ws?ticket=bogus", http.StatusForbidden},
+		// SQL 的 fail() 把 ErrForbidden 与 ErrConflict 归入同一个 409 case
+		{"SQL 控制台 WS", "/api/v1/sql/connections/1/sessions/1/ws?ticket=bogus", http.StatusConflict},
+		{"Redis 控制台 WS", "/api/v1/redis/connections/1/sessions/1/ws?ticket=bogus", http.StatusForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := http.Get(base + tc.path)
+			if err != nil {
+				t.Fatalf("GET %s: %v", tc.path, err)
+			}
+			defer resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			if resp.StatusCode == http.StatusNotFound {
+				t.Fatalf("%s 返回 404：WS 路由未注册", tc.path)
+			}
+			if resp.StatusCode != tc.want {
+				t.Fatalf("%s status = %d, want %d", tc.path, resp.StatusCode, tc.want)
+			}
+		})
+	}
+}
+
 func itoa(v int) string {
 	if v == 0 {
 		return "0"

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -708,6 +707,3 @@ func (s *Service) Cleanup(ctx context.Context, retention time.Duration) error {
 	_, err = s.db.ExecContext(ctx, `UPDATE redis_exec_logs SET status='failed',error='执行状态丢失（服务重启）',finished_at=? WHERE status='running' AND created_at<?`, now.UnixMilli(), now.Add(-time.Hour).UnixMilli())
 	return err
 }
-
-// IsNotFound 判断错误是否为记录不存在。
-func IsNotFound(err error) bool { return errors.Is(err, sql.ErrNoRows) }

@@ -118,14 +118,6 @@ export interface SqlQueryInput {
   timeoutSeconds?: number;
 }
 
-export interface SqlTableSchema {
-  name: string;
-  comment?: string;
-  columns: { name: string; dataType: string; nullable: boolean; default: unknown; key?: string; extra?: string }[];
-  indexes: { name: string; columns?: string[]; unique: boolean; definition?: string }[];
-  ddl?: string;
-}
-
 export interface SqlSessionInfo {
   sessionId: string;
   ticket: string;

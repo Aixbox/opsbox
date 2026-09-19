@@ -187,7 +187,10 @@ func TestRunCommandClosedSession(t *testing.T) {
 func TestSessionMultipleSubscribers(t *testing.T) {
 	_, session := newTestSession(t)
 
-	if !session.Attach() || !session.Attach() {
+	if !session.Attach() {
+		t.Fatal("首次接入应成功")
+	}
+	if !session.Attach() {
 		t.Fatal("应允许多客户端接入")
 	}
 	if session.AttachCount() != 2 {

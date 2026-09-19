@@ -5,7 +5,6 @@ import {
   Label,
   ListBox,
   NumberField,
-  SearchField,
   Select,
   Switch,
   TextArea,
@@ -55,61 +54,6 @@ export function Choice({
       </Select.Trigger>
       <Select.Popover>
         <ListBox disabledKeys={options.filter((option) => option.disabled).map((option) => option.value)}>
-          {options.map((option) => (
-            <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-              {option.label}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-      {description && <Description>{description}</Description>}
-      <FieldError />
-    </Select>
-  );
-}
-
-export function MultiChoice({
-  label,
-  values,
-  onChange,
-  options,
-  description,
-  disabled,
-  required,
-  surface = true,
-}: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  options: Option[];
-  description?: string;
-  disabled?: boolean;
-  required?: boolean;
-  surface?: boolean;
-}) {
-  return (
-    <Select
-      className="w-full min-w-0"
-      aria-label={label}
-      selectionMode="multiple"
-      value={values}
-      onChange={(keys) => onChange(Array.isArray(keys) ? keys.map(String) : [])}
-      isRequired={required}
-      isDisabled={disabled}
-      placeholder="请选择"
-      variant={surface ? "secondary" : "primary"}
-    >
-      <Label>{label}</Label>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox
-          selectionMode="multiple"
-          disabledKeys={options.filter((option) => option.disabled).map((option) => option.value)}
-        >
           {options.map((option) => (
             <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
               {option.label}
@@ -288,32 +232,5 @@ export function Toggle({
         </p>
       )}
     </div>
-  );
-}
-export function Search({
-  label,
-  value,
-  onChange,
-  surface = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  surface?: boolean;
-}) {
-  return (
-    <SearchField
-      className="w-full"
-      aria-label={label}
-      value={value}
-      onChange={onChange}
-      variant={surface ? "secondary" : "primary"}
-    >
-      <SearchField.Group>
-        <SearchField.SearchIcon />
-        <SearchField.Input className="w-full" placeholder={label} />
-        <SearchField.ClearButton />
-      </SearchField.Group>
-    </SearchField>
   );
 }

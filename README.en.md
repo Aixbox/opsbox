@@ -5,6 +5,7 @@
 **A local ops gate for AI agents — the agent does the work, you hold the reins.**
 
 [![Release](https://img.shields.io/github/v/release/Aixbox/opsbox?logo=github)](https://github.com/Aixbox/opsbox/releases)
+[![CI](https://github.com/Aixbox/opsbox/actions/workflows/ci.yml/badge.svg)](https://github.com/Aixbox/opsbox/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
 

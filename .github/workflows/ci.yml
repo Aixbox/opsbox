@@ -1,0 +1,43 @@
+name: CI
+
+# push 到 main / PR / 手动触发 → 静态检查 + 全量测试 + 前端构建。
+# 发布构建见 release.yml（tag 触发，双平台）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+
+      - name: go test
+        run: go test ./...
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend build (tsc + vite)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build

@@ -499,7 +499,7 @@ func countFindOptions(args []word) int {
 
 func (a *analyzer) checkRedirect(redirect *syntax.Redirect) {
 	switch redirect.Op {
-	case syntax.RdrOut, syntax.AppOut, syntax.RdrAll, syntax.AppAll, syntax.ClbOut:
+	case syntax.RdrOut, syntax.AppOut, syntax.RdrAll, syntax.AppAll, syntax.RdrClob:
 	default:
 		return
 	}

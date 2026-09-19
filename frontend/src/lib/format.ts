@@ -1,12 +1,5 @@
 /** 通用展示格式化 */
 
-export function formatDateTime(value: string | number | Date | null | undefined): string {
-  if (value === null || value === undefined || value === "") return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("zh-CN", { hour12: false });
-}
-
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined || Number.isNaN(bytes)) return "—";
   if (bytes < 1024) return `${bytes} B`;

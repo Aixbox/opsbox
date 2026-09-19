@@ -43,11 +43,6 @@ func UploadAt(ctx context.Context, client *Client, remotePath string, offset int
 	return written, nil
 }
 
-// Upload 覆盖写远端文件（等价于 UploadAt(…, 0, …)）。
-func Upload(ctx context.Context, client *Client, remotePath string, reader io.Reader) (int64, error) {
-	return UploadAt(ctx, client, remotePath, 0, reader)
-}
-
 // DownloadAt 从远端 remotePath 的 offset 处流式读到 writer，返回读取字节数。
 func DownloadAt(ctx context.Context, client *Client, remotePath string, offset int64, writer io.Writer) (int64, error) {
 	sftpClient, err := sftp.NewClient(client.Client)
@@ -73,11 +68,6 @@ func DownloadAt(ctx context.Context, client *Client, remotePath string, offset i
 		return copied, fmt.Errorf("读取远端文件失败: %w", err)
 	}
 	return copied, nil
-}
-
-// Download 从头读取远端文件。
-func Download(ctx context.Context, client *Client, remotePath string, writer io.Writer) (int64, error) {
-	return DownloadAt(ctx, client, remotePath, 0, writer)
 }
 
 // StatSize 返回远端文件大小；不存在返回 (0, false, nil)，是目录则报错。
