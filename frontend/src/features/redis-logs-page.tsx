@@ -50,7 +50,6 @@ export default function RedisLogsPage() {
       <div className="grid gap-3 sm:grid-cols-2">
         <Choice
           label="连接"
-          surface={false}
           value={connectionId}
           onChange={(value) => {
             setConnectionId(value);
@@ -63,7 +62,6 @@ export default function RedisLogsPage() {
         />
         <Choice
           label="状态"
-          surface={false}
           value={status}
           onChange={(value) => {
             setStatus(value as LogStatus | "");

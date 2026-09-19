@@ -53,7 +53,6 @@ export default function SqlLogsPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <Choice
           label="连接"
-          surface={false}
           value={connectionId}
           onChange={(value) => {
             setConnectionId(value);
@@ -66,7 +65,6 @@ export default function SqlLogsPage() {
         />
         <Choice
           label="状态"
-          surface={false}
           value={status}
           onChange={(value) => {
             setStatus(value as QueryStatus | "");
@@ -76,7 +74,6 @@ export default function SqlLogsPage() {
         />
         <Choice
           label="类别"
-          surface={false}
           value={kind}
           onChange={(value) => {
             setKind(value as QueryKind | "");
