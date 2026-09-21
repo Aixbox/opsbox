@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"opsbox/internal/platform/console"
 	"opsbox/internal/platform/redisx"
 	"opsbox/internal/platform/security"
@@ -345,6 +347,41 @@ func (s *Service) TestConnection(ctx context.Context, id int64) (map[string]any,
 		version = parseServerVersion(fmt.Sprint(info))
 	}
 	return map[string]any{"ok": true, "version": version, "db": conn.DB}, nil
+}
+
+// TestTarget 用表单当前参数 PING 测试（添加 / 编辑抽屉的「测试连接」按钮）。
+// fromID>0 表示编辑场景：密码未填（nil）时回退到已保存密码，其余字段一律以表单为准；
+// 密码显式传空串（前端「清除已保存的密码」）表示按无密码实例测试。
+func (s *Service) TestTarget(ctx context.Context, fromID int64, input ConnectionInput) (map[string]any, error) {
+	password := ""
+	if input.Password != nil {
+		password = *input.Password
+	} else if fromID > 0 {
+		var ciphertext []byte
+		if err := s.db.QueryRowContext(ctx, `SELECT password_ciphertext FROM redis_connections WHERE id=?`, fromID).Scan(&ciphertext); err != nil {
+			return nil, err
+		}
+		if len(ciphertext) > 0 {
+			var err error
+			if password, err = s.cipher.Decrypt(ciphertext); err != nil {
+				return nil, err
+			}
+		}
+	}
+	config := redisx.ClientConfig{Host: input.Host, Port: input.Port, DB: input.DB, TLS: input.TLS, Password: password}
+	// 一次性客户端，不进连接池：未保存的配置不能污染按连接 id 缓存的池
+	client := redis.NewClient(config.Options())
+	defer client.Close()
+	dialCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := client.Ping(dialCtx).Err(); err != nil {
+		return nil, err
+	}
+	version := ""
+	if info, err := client.Do(dialCtx, "INFO", "server").Result(); err == nil {
+		version = parseServerVersion(fmt.Sprint(info))
+	}
+	return map[string]any{"ok": true, "version": version, "db": input.DB}, nil
 }
 
 // parseServerVersion 从 INFO server 输出里取 redis_version / valkey_version。

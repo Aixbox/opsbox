@@ -49,6 +49,8 @@ func (h *Handler) RegisterRoutes(group *gin.RouterGroup) {
 	g.PUT("/connections/:id", h.updateConnection)
 	g.DELETE("/connections/:id", h.deleteConnection)
 	g.POST("/connections/:id/test", h.testConnection)
+	// 按表单参数测试（添加 / 编辑抽屉的「测试连接」）：?fromId= 编辑场景下凭证留空回退已保存值
+	g.POST("/connections/test", h.testTarget)
 	g.POST("/connections/:id/exec", h.exec)
 	g.POST("/connections/:id/exec/check", h.checkExec)
 	g.POST("/connections/:id/transfers", h.requestTransfer)
@@ -231,6 +233,22 @@ func (h *Handler) testConnection(c *gin.Context) {
 	}
 	extendDeadline(c, 30*time.Second)
 	result, err := h.service.TestConnection(c.Request.Context(), id)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	response.JSON(c, http.StatusOK, "OK", "success", result)
+}
+
+// testTarget 用表单当前参数测试连通性（抽屉里的「测试连接」），不要求连接已保存，也不落任何状态。
+func (h *Handler) testTarget(c *gin.Context) {
+	var input ConnectionInput
+	if !bind(c, &input) {
+		return
+	}
+	fromID, _ := strconv.ParseInt(c.Query("fromId"), 10, 64)
+	extendDeadline(c, 30*time.Second)
+	result, err := h.service.TestTarget(c.Request.Context(), fromID, input)
 	if err != nil {
 		fail(c, err)
 		return

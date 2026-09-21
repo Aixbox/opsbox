@@ -1,7 +1,7 @@
 import { Button, Drawer, Spinner } from "@heroui/react";
 import { useId, useState } from "react";
 import { Choice, Field, NumericField, Toggle } from "~/features/fields";
-import { Notice, errorMessage } from "~/features/shared";
+import { Notice, TestConnectionButton, errorMessage } from "~/features/shared";
 import { redisApi, type RedisConnection, type RedisConnectionInput } from "~/lib/api/redis";
 import { policyLabels } from "./shared";
 
@@ -68,6 +68,20 @@ export function ConnectionDrawer({
     } finally {
       setPending(false);
     }
+  }
+
+  /** 用表单当前值真实 PING 一次：密码没填交给后端按 fromId 回退；勾了「清除密码」按无密码实例测 */
+  function testConnection(): Promise<string> {
+    const payload: RedisConnectionInput = { ...input };
+    if (clearPassword) {
+      payload.password = "";
+    } else if (password.trim()) {
+      payload.password = password;
+    }
+    return redisApi.testTarget(payload, connection?.id).then((result) => {
+      const version = result.version ? `，服务端版本 ${result.version}` : "";
+      return `PING 成功（db ${result.db}${version}）`;
+    });
   }
 
   return (
@@ -185,6 +199,15 @@ export function ConnectionDrawer({
                   maxLength={500}
                 />
                 <Toggle label="启用" selected={input.enabled} onChange={(enabled) => setInput({ ...input, enabled })} />
+                <TestConnectionButton
+                  onTest={testConnection}
+                  disabled={pending}
+                  failureHint={
+                    editing && !clearPassword && !password.trim()
+                      ? "密码留空：本次测试用的是已保存的密码。如果密码已变更，请先在密码栏填写再测。"
+                      : undefined
+                  }
+                />
               </fieldset>
               {error && (
                 <Notice status="danger" title="保存失败">

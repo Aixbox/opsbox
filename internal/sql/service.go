@@ -360,6 +360,59 @@ func (s *Service) TestConnection(ctx context.Context, id int64) (map[string]any,
 	return map[string]any{"ok": true, "engine": conn.Engine, "database": conn.Database}, nil
 }
 
+// TestTarget 用表单当前参数测试连通性（添加 / 编辑抽屉的「测试连接」按钮）。
+// fromID>0 表示编辑场景：密码未填（nil）时回退到已保存密码，其余字段一律以表单为准——
+// 测的就是用户此刻看到并填写的内容，而不是库里可能已过时的配置。
+func (s *Service) TestTarget(ctx context.Context, fromID int64, input ConnectionInput) (map[string]any, error) {
+	engine := sqlx.Engine(input.Engine)
+	if !engine.Valid() {
+		return nil, invalid("不支持的数据库引擎")
+	}
+	password := ""
+	if input.Password != nil {
+		password = *input.Password
+	} else if fromID > 0 {
+		var ciphertext []byte
+		if err := s.db.QueryRowContext(ctx, `SELECT password_ciphertext FROM sql_connections WHERE id=?`, fromID).Scan(&ciphertext); err != nil {
+			return nil, err
+		}
+		if len(ciphertext) > 0 {
+			var err error
+			if password, err = s.cipher.Decrypt(ciphertext); err != nil {
+				return nil, err
+			}
+		}
+	}
+	params := map[string]string{}
+	if input.Params != "" {
+		_ = json.Unmarshal([]byte(input.Params), &params)
+	}
+	target := sqlx.Target{
+		Engine: engine, Host: input.Host, Port: input.Port, Username: input.Username,
+		Password: password, Database: input.Database, Params: params,
+	}
+	driver, dsn, err := target.DSN()
+	if err != nil {
+		return nil, err
+	}
+	// 一次性拨号测试，不进连接池：未保存的配置不能污染按连接 id 缓存的池
+	testCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+	defer cancel()
+	db, err := sql.Open(driver, dsn)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	if err := db.PingContext(testCtx); err != nil {
+		return nil, err
+	}
+	var one int
+	if err := db.QueryRowContext(testCtx, `SELECT 1`).Scan(&one); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true, "engine": input.Engine, "database": input.Database}, nil
+}
+
 // target 解密密码并组装连接目标。
 func (s *Service) target(ctx context.Context, id int64) (Connection, sqlx.Target, error) {
 	conn, err := s.GetConnection(ctx, id)

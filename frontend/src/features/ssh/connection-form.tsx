@@ -1,7 +1,7 @@
 import { Button, Drawer, Spinner } from "@heroui/react";
 import { useId, useState } from "react";
 import { Choice, Field, NumericField, TextFieldArea, Toggle } from "~/features/fields";
-import { Notice, errorMessage } from "~/features/shared";
+import { Notice, TestConnectionButton, errorMessage } from "~/features/shared";
 import { sshApi, type SshConnection, type SshConnectionInput } from "~/lib/api/ssh";
 import { policyLabels } from "./shared";
 
@@ -69,6 +69,17 @@ export function ConnectionDrawer({
     } finally {
       setPending(false);
     }
+  }
+
+  /** 用表单当前值真实拨号一次：凭证没填交给后端按 fromId 回退已保存值（编辑场景） */
+  function testConnection(): Promise<string> {
+    const payload: SshConnectionInput = { ...input };
+    if (password.trim()) payload.password = password;
+    if (privateKey.trim()) payload.privateKey = privateKey;
+    if (passphrase.trim()) payload.passphrase = passphrase;
+    return sshApi
+      .testTarget(payload, connection?.id)
+      .then((result) => (result.uname ? `认证通过：${result.uname}` : "SSH 认证通过，host key 已确认"));
   }
 
   return (
@@ -197,6 +208,15 @@ export function ConnectionDrawer({
                   maxLength={500}
                 />
                 <Toggle label="启用" selected={input.enabled} onChange={(enabled) => setInput({ ...input, enabled })} />
+                <TestConnectionButton
+                  onTest={testConnection}
+                  disabled={pending}
+                  failureHint={
+                    editing && !(input.authType === "password" ? password.trim() : privateKey.trim())
+                      ? "凭证留空：本次测试用的是已保存的凭证。如果凭证已变更，请先填写再测。"
+                      : undefined
+                  }
+                />
                 {editing && connection?.hostKey && (
                   <Toggle
                     label="重新记录主机指纹"

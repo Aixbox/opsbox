@@ -417,6 +417,75 @@ func (s *Service) TestConnection(ctx context.Context, id int64) (map[string]any,
 	return map[string]any{"ok": true, "hostKey": client.HostKey, "uname": uname}, nil
 }
 
+// TestTarget 用表单当前参数拨号测试（添加 / 编辑抽屉的「测试连接」按钮）。
+// fromID>0 表示编辑场景：凭证字段未填（nil）时逐字段回退到已保存凭证，其余字段一律以表单为准。
+// 与 TestConnection 不同：只在内存里拨号验证，不落库、不记录 host key——测试不应产生副作用。
+func (s *Service) TestTarget(ctx context.Context, fromID int64, input ConnectionInput) (map[string]any, error) {
+	var saved [3]string // password / privateKey / passphrase 的已保存明文（惰性解密）
+	if fromID > 0 && (input.Password == nil || input.PrivateKey == nil || input.Passphrase == nil) {
+		var password, privateKey, passphrase []byte
+		if err := s.db.QueryRowContext(ctx, `SELECT password_ciphertext,private_key_ciphertext,key_passphrase_ciphertext FROM ssh_connections WHERE id=?`, fromID).Scan(&password, &privateKey, &passphrase); err != nil {
+			return nil, err
+		}
+		decrypt := func(ciphertext []byte) (string, error) {
+			if len(ciphertext) == 0 {
+				return "", nil
+			}
+			return s.cipher.Decrypt(ciphertext)
+		}
+		var err error
+		if saved[0], err = decrypt(password); err != nil {
+			return nil, err
+		}
+		if saved[1], err = decrypt(privateKey); err != nil {
+			return nil, err
+		}
+		if saved[2], err = decrypt(passphrase); err != nil {
+			return nil, err
+		}
+	}
+	// nil = 表单里留空（编辑时沿用已保存的），空串 = 显式清空
+	effective := func(value *string, index int) string {
+		if value != nil {
+			return *value
+		}
+		return saved[index]
+	}
+	target := sshx.Target{
+		Host: input.Host, Port: input.Port, Username: input.Username, AuthType: input.AuthType,
+		Password:   effective(input.Password, 0),
+		PrivateKey: effective(input.PrivateKey, 1),
+		Passphrase: effective(input.Passphrase, 2),
+		Timeout:    10 * time.Second,
+	}
+	// 凭证缺失时提前给出可操作的原因（authMethods 的裸错误会被 fail() 归为笼统的 500）
+	switch target.AuthType {
+	case "password":
+		if target.Password == "" {
+			return nil, invalid("密码认证需要填写密码")
+		}
+	case "key":
+		if target.PrivateKey == "" {
+			return nil, invalid("私钥认证需要粘贴私钥")
+		}
+	default:
+		return nil, invalid("不支持的认证方式 " + target.AuthType)
+	}
+	dialCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	defer cancel()
+	client, err := s.dialer.Dial(dialCtx, target)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	result, err := sshx.RunExec(dialCtx, client, "uname -a", sshx.ExecOptions{OutputLimit: 4096})
+	uname := ""
+	if err == nil {
+		uname = strings.TrimSpace(string(result.Stdout))
+	}
+	return map[string]any{"ok": true, "hostKey": client.HostKey, "uname": uname}, nil
+}
+
 // ---- 设置 ----
 
 func (s *Service) GetSettings(ctx context.Context) (Settings, error) {

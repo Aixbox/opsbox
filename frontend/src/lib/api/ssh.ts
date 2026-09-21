@@ -157,6 +157,13 @@ export const sshApi = {
   deleteConnection: (id: number) => write<void>(`/connections/${id}`, "DELETE"),
   testConnection: (id: number) =>
     write<{ ok: boolean; hostKey: string; uname: string }>(`/connections/${id}/test`, "POST"),
+  /** 按表单参数测试连通性（添加 / 编辑抽屉的「测试连接」）；fromId= 编辑场景下凭证留空回退已保存值 */
+  testTarget: (input: SshConnectionInput, fromId?: number) =>
+    write<{ ok: boolean; hostKey: string; uname: string }>(
+      `/connections/test?${buildQuery({ fromId })}`,
+      "POST",
+      input,
+    ),
   exec: (id: number, input: { command: string; timeoutSeconds?: number; pty?: boolean }) =>
     write<SshExecOutcome>(`/connections/${id}/exec`, "POST", input),
   command: (id: number, signal?: AbortSignal) => get<SshExecOutcome>(`/commands/${id}`, {}, signal),

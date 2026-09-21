@@ -17,6 +17,7 @@ import {
   PageHeader,
   QueryError,
   RefreshButton,
+  RowTestButton,
   StatusChip,
   AgentPrompt,
   dateTime,
@@ -61,12 +62,6 @@ function SshPage() {
         break;
       case "exec":
         setExec(row);
-        break;
-      case "test":
-        void actions.run(async () => {
-          const result = await sshApi.testConnection(row.id);
-          return result;
-        }, `${row.name} 连接成功，主机指纹已记录`);
         break;
       case "edit":
         setEditor(row);
@@ -182,9 +177,11 @@ function SshPage() {
                 >
                   执行命令
                 </Button>
-                <Button size="sm" variant="tertiary" onPress={() => rowAction(row, "test")}>
-                  测试连接
-                </Button>
+                <RowTestButton
+                  run={actions.run}
+                  action={() => sshApi.testConnection(row.id)}
+                  successMessage={`${row.name} 连接成功，主机指纹已记录`}
+                />
                 <Button size="sm" variant="tertiary" onPress={() => rowAction(row, "edit")}>
                   编辑
                 </Button>

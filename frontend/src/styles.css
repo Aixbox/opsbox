@@ -1,6 +1,25 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+/* ---------------------------------------------------------------------------
+ * 弹层滚动区渲染修复（WebView2 实测：结果卡片出现/滚动到底部时整个表单闪一下）
+ * ① scrollbar-gutter: stable —— HeroUI 默认 gutter:auto，内容第一次超过滚动高度时
+ *    滚动条才出现，整个内容区瞬间收窄 ~11px 再回流，视觉上就是「整表闪一下」。
+ *    常驻占位后滚动条出现/消失不再引起任何宽度回流。
+ * ② overscroll-behavior: auto —— contain 在滚动到达底部边界时触发 Chromium 已知的
+ *    重绘闪烁；结果卡片在表单最底部，用户滚到底部看卡片必触边界。去掉后滚动链
+ *    由弹层打开时 body overflow:hidden 吸收，无副作用。
+ * ③ -webkit-overflow-scrolling 复位（iOS 触摸动量，Windows 无意义）。
+ * ------------------------------------------------------------------------- */
+.drawer__body,
+.modal__body--scroll-inside,
+.modal__backdrop:has(.modal__container--scroll-outside),
+.alert-dialog__body {
+  scrollbar-gutter: stable;
+  overscroll-behavior: auto;
+  -webkit-overflow-scrolling: auto;
+}
+
 :root {
   view-transition-name: root;
 

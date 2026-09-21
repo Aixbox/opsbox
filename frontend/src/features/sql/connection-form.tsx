@@ -1,7 +1,7 @@
 import { Button, Drawer, Spinner } from "@heroui/react";
 import { useId, useState } from "react";
 import { Choice, Field, NumericField, TextFieldArea, Toggle } from "~/features/fields";
-import { Notice, errorMessage } from "~/features/shared";
+import { Notice, TestConnectionButton, errorMessage } from "~/features/shared";
 import { sqlApi, type SqlConnection, type SqlConnectionInput, type SqlEngine } from "~/lib/api/sql";
 import { engineLabels, policyLabels } from "./shared";
 
@@ -69,6 +69,15 @@ export function ConnectionDrawer({
     } finally {
       setPending(false);
     }
+  }
+
+  /** 用表单当前值真实连一次：密码没填就交给后端按 fromId 回退已保存值（编辑场景） */
+  function testConnection(): Promise<string> {
+    const payload: SqlConnectionInput = { ...input };
+    if (password.trim()) payload.password = password;
+    return sqlApi
+      .testTarget(payload, connection?.id)
+      .then((result) => `已连通 ${engineLabels[result.engine] ?? result.engine} 数据库 ${result.database}`);
   }
 
   return (
@@ -199,6 +208,15 @@ export function ConnectionDrawer({
                   maxLength={500}
                 />
                 <Toggle label="启用" selected={input.enabled} onChange={(enabled) => setInput({ ...input, enabled })} />
+                <TestConnectionButton
+                  onTest={testConnection}
+                  disabled={pending}
+                  failureHint={
+                    editing && !password.trim()
+                      ? "密码留空：本次测试用的是已保存的密码。如果密码已变更，请先在密码栏填写再测。"
+                      : undefined
+                  }
+                />
               </fieldset>
               {error && (
                 <Notice status="danger" title="保存失败">

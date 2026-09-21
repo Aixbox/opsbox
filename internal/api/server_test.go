@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -341,6 +342,186 @@ func TestWSEndpointsRegistered(t *testing.T) {
 			}
 			if resp.StatusCode != tc.want {
 				t.Fatalf("%s status = %d, want %d", tc.path, resp.StatusCode, tc.want)
+			}
+		})
+	}
+}
+
+// TestTestByParamsEndpoints 验证三模块的 POST /connections/test（添加 / 编辑抽屉的「测试连接」）：
+// 路由与 :id/test 共存、JSON 绑定、编辑回退（fromId 不存在 → 404）、上游错误映射（指向关闭端口 → 502）。
+func TestTestByParamsEndpoints(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer db.Close()
+	cipher, err := security.NewTokenCipher("test-secret")
+	if err != nil {
+		t.Fatalf("cipher: %v", err)
+	}
+	server, err := New(db, cipher, slog.Default(), "test")
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	if err := server.Listen(0); err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = server.Serve() }()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	base := "http://127.0.0.1:" + itoa(server.Port())
+
+	post := func(path, payload string) (int, []byte) {
+		resp, err := http.Post(base+path, "application/json", strings.NewReader(payload))
+		if err != nil {
+			t.Fatalf("POST %s: %v", path, err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		return resp.StatusCode, body
+	}
+
+	cases := []struct {
+		name       string
+		path       string
+		payload    string
+		mergeEmpty string // 不带凭证字段的 payload：命中 fromId 回退分支（不存在 → 404）
+	}{
+		{"sql", "/api/v1/sql/connections/test", `{"engine":"mysql","host":"127.0.0.1","port":1,"username":"root","password":"x","database":"app"}`, `{"engine":"mysql","host":"127.0.0.1","port":1,"username":"root","database":"app"}`},
+		{"redis", "/api/v1/redis/connections/test", `{"name":"t","host":"127.0.0.1","port":1,"db":0,"writePolicy":"confirm"}`, `{"name":"t","host":"127.0.0.1","port":1,"db":0,"writePolicy":"confirm"}`},
+		{"ssh", "/api/v1/ssh/connections/test", `{"name":"t","host":"127.0.0.1","port":1,"username":"root","authType":"password","password":"x"}`, `{"name":"t","host":"127.0.0.1","port":1,"username":"root","authType":"password"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name+"/closed-port", func(t *testing.T) {
+			status, body := post(tc.path, tc.payload)
+			if status != http.StatusBadGateway {
+				t.Fatalf("status = %d body = %s，期望 502（上游不可达）", status, body)
+			}
+		})
+		t.Run(tc.name+"/missing-fromId", func(t *testing.T) {
+			status, body := post(tc.path+"?fromId=999", tc.mergeEmpty)
+			if status != http.StatusNotFound {
+				t.Fatalf("status = %d body = %s，期望 404（回退的连接不存在）", status, body)
+			}
+		})
+	}
+}
+
+// TestTestTargetEditFallback 复现用户反馈「添加里测试正常、编辑里测试失败」：
+// 真实创建带密码的连接，再用编辑抽屉的请求形态（fromId + 不带凭证字段）测试。
+// 回退分支应与添加场景一样走到上游拨号（关闭端口 → 502，错误信息一致），
+// 而不是在中途以 500/422 等不同方式失败。
+func TestTestTargetEditFallback(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer db.Close()
+	cipher, err := security.NewTokenCipher("test-secret")
+	if err != nil {
+		t.Fatalf("cipher: %v", err)
+	}
+	server, err := New(db, cipher, slog.Default(), "test")
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	if err := server.Listen(0); err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = server.Serve() }()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+	base := "http://127.0.0.1:" + itoa(server.Port())
+
+	post := func(path, payload string) (int, []byte) {
+		resp, err := http.Post(base+path, "application/json", strings.NewReader(payload))
+		if err != nil {
+			t.Fatalf("POST %s: %v", path, err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		return resp.StatusCode, body
+	}
+	dataID := func(t *testing.T, body []byte) string {
+		var envelope struct {
+			Code string `json:"code"`
+			Data struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(body, &envelope); err != nil || envelope.Code != "OK" {
+			t.Fatalf("create envelope = %s", body)
+		}
+		return itoa(int(envelope.Data.ID))
+	}
+
+	cases := []struct {
+		name       string
+		createPath string
+		createBody string
+		testPath   string
+		editBody   string // 编辑抽屉形态：凭证字段整个不发
+		addBody    string // 添加抽屉形态：凭证随表单发送
+	}{
+		{
+			name:       "sql",
+			createPath: "/api/v1/sql/connections",
+			createBody: `{"name":"prod","engine":"mysql","host":"127.0.0.1","port":1,"username":"root","password":"s3cret","database":"app","writePolicy":"confirm"}`,
+			testPath:   "/api/v1/sql/connections/test",
+			editBody:   `{"name":"prod","engine":"mysql","host":"127.0.0.1","port":1,"username":"root","database":"app","writePolicy":"confirm"}`,
+			addBody:    `{"name":"prod2","engine":"mysql","host":"127.0.0.1","port":1,"username":"root","password":"s3cret","database":"app","writePolicy":"confirm"}`,
+		},
+		{
+			name:       "redis",
+			createPath: "/api/v1/redis/connections",
+			createBody: `{"name":"cache","host":"127.0.0.1","port":1,"db":0,"password":"s3cret","writePolicy":"confirm"}`,
+			testPath:   "/api/v1/redis/connections/test",
+			editBody:   `{"name":"cache","host":"127.0.0.1","port":1,"db":0,"writePolicy":"confirm"}`,
+			addBody:    `{"name":"cache2","host":"127.0.0.1","port":1,"db":0,"password":"s3cret","writePolicy":"confirm"}`,
+		},
+		{
+			name:       "ssh",
+			createPath: "/api/v1/ssh/connections",
+			createBody: `{"name":"web","host":"127.0.0.1","port":1,"username":"root","authType":"password","password":"s3cret","execPolicy":"audit"}`,
+			testPath:   "/api/v1/ssh/connections/test",
+			editBody:   `{"name":"web","host":"127.0.0.1","port":1,"username":"root","authType":"password","execPolicy":"audit"}`,
+			addBody:    `{"name":"web2","host":"127.0.0.1","port":1,"username":"root","authType":"password","password":"s3cret","execPolicy":"audit"}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			status, body := post(tc.createPath, tc.createBody)
+			if status != http.StatusCreated {
+				t.Fatalf("create status = %d body = %s", status, body)
+			}
+			id := dataID(t, body)
+
+			// 编辑场景：fromId + 不带凭证 → 应与添加场景同样到达上游拨号
+			editStatus, editBody := post(tc.testPath+"?fromId="+id, tc.editBody)
+			addStatus, addBody := post(tc.testPath, tc.addBody)
+			if editStatus != addStatus {
+				t.Fatalf("编辑测试 status = %d body = %s；添加测试 status = %d body = %s；两者应一致",
+					editStatus, editBody, addStatus, addBody)
+			}
+			if editStatus != http.StatusBadGateway {
+				t.Fatalf("status = %d（编辑 body = %s），期望两者同为 502（关闭端口）", editStatus, editBody)
+			}
+			if string(editBody) != string(addBody) {
+				t.Fatalf("编辑测试错误信息与添加不一致：edit = %s, add = %s", editBody, addBody)
 			}
 		})
 	}

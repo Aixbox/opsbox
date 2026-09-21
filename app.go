@@ -57,13 +57,18 @@ type config struct {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	log := slog.Default()
 	dataDir, err := ensureDataDir()
 	if err != nil {
-		log.Error("prepare data dir", "error", err)
+		slog.Default().Error("prepare data dir", "error", err)
 		return
 	}
 	a.dataDir = dataDir
+	// 先把 slog 切到文件再继续：打包后的窗口程序没有 stdout，
+	// 不落文件的日志等于没有，失败诊断全靠它。
+	if err := setupFileLog(dataDir); err != nil {
+		slog.Default().Warn("setup file log", "error", err)
+	}
+	log := slog.Default()
 	a.cfgPath = filepath.Join(dataDir, "config.json")
 
 	cfg, err := loadConfig(a.cfgPath)
@@ -272,6 +277,25 @@ func ensureDataDir() (string, error) {
 		return "", err
 	}
 	return dir, nil
+}
+
+// setupFileLog 把 slog 默认输出切到 <dataDir>/logs/opsbox.log（追加写）。
+// 超过 8MB 时启动轮转为 .old，只保留一代——本地日志够排查用即可，不做完整轮转体系。
+func setupFileLog(dataDir string) error {
+	logDir := filepath.Join(dataDir, "logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(logDir, "opsbox.log")
+	if info, err := os.Stat(path); err == nil && info.Size() > 8<<20 {
+		_ = os.Rename(path, path+".old")
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	return nil
 }
 
 // saveConfig 把配置原子写回数据目录（先写临时文件再替换，避免写坏密钥文件）。

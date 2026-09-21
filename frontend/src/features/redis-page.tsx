@@ -8,6 +8,7 @@ import {
   PageHeader,
   QueryError,
   RefreshButton,
+  RowTestButton,
   StatusChip,
   AgentPrompt,
   dateTime,
@@ -129,9 +130,11 @@ export default function RedisPage() {
                   <ScanSearch size={14} aria-hidden="true" />
                   扫描
                 </Button>
-                <Button size="sm" variant="tertiary" onPress={() => void actions.run(async () => redisApi.testConnection(row.id), `${row.name} 连接成功`)}>
-                  测试
-                </Button>
+                <RowTestButton
+                  run={actions.run}
+                  action={() => redisApi.testConnection(row.id)}
+                  successMessage={`${row.name} 连接成功`}
+                />
                 <Button size="sm" variant="tertiary" onPress={() => setEditor(row)}>
                   编辑
                 </Button>

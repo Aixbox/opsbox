@@ -1,4 +1,4 @@
-import { apiRequest } from "../api-client";
+import { apiRequest, getApiBase } from "../api-client";
 import { buildQuery } from "./types";
 
 /** SQL AI 运维模块（契约见 backend/api/openapi.yaml，SQL tag） */
@@ -166,6 +166,13 @@ export const sqlApi = {
   deleteConnection: (id: number) => write<void>(`/connections/${id}`, "DELETE"),
   testConnection: (id: number) =>
     write<{ ok: boolean; engine: string; database: string }>(`/connections/${id}/test`, "POST"),
+  /** 按表单参数测试连通性（添加 / 编辑抽屉的「测试连接」）；fromId= 编辑场景下密码留空回退已保存值 */
+  testTarget: (input: SqlConnectionInput, fromId?: number) =>
+    write<{ ok: boolean; engine: string; database: string }>(
+      `/connections/test?${buildQuery({ fromId })}`,
+      "POST",
+      input,
+    ),
   query: (id: number, input: SqlQueryInput) => write<SqlQueryOutcome>(`/connections/${id}/query`, "POST", input),
   queryStatus: (logId: number, signal?: AbortSignal) => get<SqlQueryOutcome>(`/queries/${logId}`, {}, signal),
   pending: (signal?: AbortSignal) => get<{ items: SqlQueryLog[] }>("/pending-queries", {}, signal),
@@ -186,10 +193,11 @@ export const sqlApi = {
   /** 给会话起名（标签页上显示）；空串恢复默认的「会话 #N」 */
   renameSession: (id: number, sid: string, name: string) =>
     write<{ name: string }>(`/connections/${id}/sessions/${sid}/rename`, "POST", { name }),
-  /** WebSocket 地址：同源代理（dev 由 vite proxy 转发 /api/v1）或 VITE_API_BASE_URL */
+  /** WebSocket 地址：直连本地 API 端口（Wails 打包后经 getApiBase 拿到实际端口；dev 由 vite proxy 转发） */
   consoleSocketUrl: (id: number, sid: string, ticket: string) => {
-    const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
-    const origin = apiBase || window.location.origin;
+    // 不能用 window.location.origin 兜底：Wails 打包后页面跑在 wails.localhost 资源服务上，
+    // 它不代理 /api/v1，WebSocket 握手必失败（表现为「连接已断开」）；dev 下 getApiBase 为空串走 vite proxy
+    const origin = getApiBase() || window.location.origin;
     const url = new URL(`${base}/connections/${id}/sessions/${sid}/ws`, origin);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.searchParams.set("ticket", ticket);

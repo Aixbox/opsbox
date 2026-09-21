@@ -5,6 +5,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -56,7 +58,8 @@ func New(db *sql.DB, cipher *security.TokenCipher, log *slog.Logger, version str
 	s := &Server{log: log, version: version}
 	// originGuard 必须先于 cors：恶意网页的跨站请求在进业务前就被拒，
 	// 而不是只靠 CORS 响应头让浏览器拦响应（简单请求服务器侧照样会执行）。
-	engine.Use(gin.Recovery(), originGuard(), cors())
+	// accessLog 最外层：Recovery 兜住的 panic 产生的 500 也能被记录。
+	engine.Use(s.accessLog(), gin.Recovery(), originGuard(), cors())
 	engine.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "app": "opsbox", "version": version})
 	})
@@ -207,4 +210,52 @@ func isLocalUIOrigin(origin string) bool {
 		return true
 	}
 	return false
+}
+
+// bodyWriter 包装 gin.ResponseWriter，截留响应体（限长）供日志使用。
+type bodyWriter struct {
+	gin.ResponseWriter
+	buf   bytes.Buffer
+	limit int
+}
+
+func (w *bodyWriter) Write(b []byte) (int, error) {
+	if w.buf.Len() < w.limit {
+		if remain := w.limit - w.buf.Len(); len(b) > remain {
+			w.buf.Write(b[:remain])
+		} else {
+			w.buf.Write(b)
+		}
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *bodyWriter) WriteString(s string) (int, error) { return w.Write([]byte(s)) }
+
+// accessLog 记录所有失败响应（4xx/5xx）：方法、路径、状态、耗时与错误信息。
+// 成功请求不打日志（本地应用量大且无诊断价值）。打包后的窗口程序没有 stdout，
+// 「测试连接为什么失败」这类问题只能靠这行日志回溯，失败原因取自响应体里的 message。
+func (s *Server) accessLog() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		bw := &bodyWriter{ResponseWriter: c.Writer, limit: 2048}
+		c.Writer = bw
+		c.Next()
+		status := bw.Status()
+		if status < http.StatusBadRequest {
+			return
+		}
+		attrs := []any{
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", status,
+			"duration", time.Since(start).Round(time.Millisecond),
+			"error", strings.TrimSpace(bw.buf.String()),
+		}
+		if status >= http.StatusInternalServerError {
+			s.log.Error("request failed", attrs...)
+		} else {
+			s.log.Warn("request rejected", attrs...)
+		}
+	}
 }

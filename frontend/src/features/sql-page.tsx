@@ -8,6 +8,7 @@ import {
   PageHeader,
   QueryError,
   RefreshButton,
+  RowTestButton,
   StatusChip,
   AgentPrompt,
   dateTime,
@@ -126,9 +127,11 @@ export default function SqlPage() {
                 <Button size="sm" variant="tertiary" isDisabled={!row.enabled} onPress={() => setQuery(row)}>
                   执行 SQL
                 </Button>
-                <Button size="sm" variant="tertiary" onPress={() => void actions.run(async () => sqlApi.testConnection(row.id), `${row.name} 连接成功`)}>
-                  测试
-                </Button>
+                <RowTestButton
+                  run={actions.run}
+                  action={() => sqlApi.testConnection(row.id)}
+                  successMessage={`${row.name} 连接成功`}
+                />
                 <Button size="sm" variant="tertiary" onPress={() => setEditor(row)}>
                   编辑
                 </Button>

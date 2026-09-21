@@ -1,6 +1,6 @@
 import { Alert, AlertDialog, Button, Chip, EmptyState, Modal, Spinner, Table } from "@heroui/react";
 import { Copy, Inbox, RefreshCw } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { TableLoadingState } from "~/features/table-loading-state";
 import { TablePagination, type TablePaginationProps } from "~/features/table-pagination";
 
@@ -11,6 +11,20 @@ export function dateTime(value?: string) {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+}
+
+/** 挂起态的延迟显示：快于 delayMs 的操作完全不显示加载态（一闪而过的 spinner 比没有更糟），慢操作在延迟后照常出现。 */
+function useDelayedFlag(active: boolean, delayMs = 300) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setShown(false);
+      return;
+    }
+    const timer = setTimeout(() => setShown(true), delayMs);
+    return () => clearTimeout(timer);
+  }, [active, delayMs]);
+  return shown;
 }
 
 const statuses: Record<string, { label: string; color: "success" | "warning" | "danger" | "default" | "accent" }> = {
@@ -97,6 +111,105 @@ export function QueryError({ error, retry }: { error: unknown; retry?: () => voi
         </Button>
       )}
     </Notice>
+  );
+}
+
+/**
+ * 连接抽屉的「测试连接」：用表单当前值发一次真实连接探测，结果就地展示。
+ * onTest 返回成功描述文案（如版本号 / uname），抛错则显示后端给的具体原因。
+ * failureHint：失败时附带的背景说明（如「本次用的是已保存的凭证」）。
+ * 注意不传 isPending：RAC 的 isPending 会走 live-region 公告路径，在 WebView2 里
+ * 会引发弹层重绘闪烁。宽度稳定用 min-w 保证：空闲时只渲染文案（无空槽空白），
+ * pending 时 spinner + 「测试中…」恰好也在 min-w 之内，按钮不跳动。
+ */
+export function TestConnectionButton({
+  onTest,
+  disabled,
+  failureHint,
+}: {
+  onTest: () => Promise<string>;
+  disabled?: boolean;
+  failureHint?: string;
+}) {
+  const [pending, setPending] = useState(false);
+  const [success, setSuccess] = useState<string>();
+  const [error, setError] = useState<string>();
+  // 加载态延迟出现：本地库的测试常在 300ms 内完成，直接显示会闪一下
+  const busy = useDelayedFlag(pending);
+
+  async function run() {
+    if (pending) return;
+    setPending(true);
+    setSuccess(undefined);
+    setError(undefined);
+    try {
+      setSuccess(await onTest());
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <Button variant="secondary" isDisabled={disabled || busy} className="min-w-28" onPress={() => void run()}>
+        {busy && <Spinner size="sm" color="current" />}
+        {busy ? "测试中…" : "测试连接"}
+      </Button>
+      {busy && (
+        <Notice status="default" title="正在测试连接">
+          真实拨号探测中，远程主机可能需要数秒，请稍候。
+        </Notice>
+      )}
+      {success && (
+        <Notice status="success" title="连接成功">
+          {success}
+        </Notice>
+      )}
+      {error && (
+        <Notice status="danger" title="连接失败">
+          {error}
+          {failureHint && <span className="mt-1 block text-xs text-muted">{failureHint}</span>}
+        </Notice>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 列表行内的「测试」按钮：自带 pending 态（spinner + 「测试中…」并禁用），
+ * 动作与结果反馈复用页面级 actions.run（成功/失败提示照旧出现在页面顶部）。
+ * SSH 等远程主机的测试耗时可达数秒，没有这个状态用户会以为点击没生效。
+ */
+export function RowTestButton({
+  run,
+  action,
+  successMessage,
+  disabled,
+}: {
+  run: (action: () => Promise<unknown>, message: string) => Promise<void>;
+  action: () => Promise<unknown>;
+  successMessage: string;
+  disabled?: boolean;
+}) {
+  const [pending, setPending] = useState(false);
+  // 加载态延迟出现：行内测试本地服务极快，直接显示会闪烁
+  const busy = useDelayedFlag(pending);
+  return (
+    <Button
+      size="sm"
+      variant="tertiary"
+      isDisabled={disabled || busy}
+      className="min-w-24"
+      onPress={() => {
+        setPending(true);
+        void run(action, successMessage).finally(() => setPending(false));
+      }}
+    >
+      {busy && <Spinner size="sm" color="current" />}
+      {busy ? "测试中…" : "测试"}
+    </Button>
   );
 }
 export interface TableColumn<T> {
