@@ -162,9 +162,9 @@ function toEntry(event: SqlConsoleEvent): ConsoleEntry {
       <span className="flex items-center gap-2">
         {event.kind && <KindChip kind={event.kind} />}
         {event.status && <LogStatusChip status={event.status as QueryStatus} />}
-        {event.durationMs ? <span className="text-[#6b7280]">{formatDuration(event.durationMs)}</span> : null}
+        {event.durationMs ? <span className="text-[#9ca3af]">{formatDuration(event.durationMs)}</span> : null}
         {event.status !== "pending" && rows.length > 0 ? (
-          <span className="text-[#6b7280]">{rows.length} 行</span>
+          <span className="text-[#9ca3af]">{rows.length} 行</span>
         ) : null}
       </span>
     ),

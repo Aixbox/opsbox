@@ -110,7 +110,17 @@ export function TerminalDrawer({ connection, onClose }: { connection: SshConnect
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         fontSize: 13,
         scrollback: 5000,
-        theme: { background: "#0b0f19" },
+        // 深色终端完整配色：只给 background 时前景默认纯白、ANSI 黑是 #2e3432，
+        // 在 #0b0f19 近黑背景上不可读（远程 CLI 输出的黑色文字直接消失）。
+        theme: {
+          background: "#0b0f19",
+          foreground: "#e5e7eb",
+          cursor: "#22d3ee",
+          cursorAccent: "#0b0f19",
+          selectionBackground: "#33415580",
+          black: "#4b535f",
+          brightBlack: "#9ca3af",
+        },
       });
       const fit = new FitAddon();
       terminal.loadAddon(fit);

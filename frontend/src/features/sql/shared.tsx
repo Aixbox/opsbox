@@ -74,10 +74,12 @@ export const blockedRuleMeta: Record<string, { label: string; description: strin
   drop_table: { label: "DROP TABLE", description: "删除整张表" },
 };
 
-/** 查询结果的表格视图（查询弹窗与日志详情共用） */
+/** 查询结果的表格视图（查询弹窗与日志详情共用）。
+ * 显式 text-foreground：在 SQL 控制台里它会继承深底控制台的浅色文字，
+ * 而外层裹的是白色卡片（bg-surface）——不设就是白底近白字。 */
 export function ResultTable({ columns, rows }: { columns: string[]; rows?: unknown[][] }) {
   return (
-    <div className="max-h-72 overflow-auto rounded-lg border border-separator">
+    <div className="max-h-72 overflow-auto rounded-lg border border-separator text-foreground">
       <table className="w-full text-left text-xs">
         <thead className="sticky top-0 bg-surface-secondary">
           <tr>

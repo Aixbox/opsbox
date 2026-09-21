@@ -118,7 +118,7 @@ export function ConsoleShell({
         {/* 接入 / 结束 / 出错等状态写在输出框里面，不在标签栏和输出框之间插行——插行会把输出框推下去再弹回来，看起来像闪 */}
         <div
           ref={scrollRef}
-          className="min-h-[55vh] flex-1 space-y-3 overflow-auto rounded-xl bg-[#0b0f19] p-3 font-mono text-xs leading-5 text-[#e5e7eb]"
+          className="console-dark min-h-[55vh] flex-1 space-y-3 overflow-auto rounded-xl bg-[#0b0f19] p-3 font-mono text-xs leading-5 text-[#e5e7eb]"
           aria-label="控制台输出"
         >
           {phase.kind === "connecting" && (
@@ -129,10 +129,10 @@ export function ConsoleShell({
           {phase.kind === "closed" && <p className="text-[#fbbf24]">控制台会话已结束：{phase.reason}</p>}
           {phase.kind === "error" && <p className="text-[#f87171]">无法接入控制台：{phase.message}</p>}
           {phase.kind === "idle" && (
-            <p className="text-[#6b7280]">还没有会话。点「新建」开始；会话会一直保留到你主动结束或闲置一小时。</p>
+            <p className="text-[#9ca3af]">还没有会话。点「新建」开始；会话会一直保留到你主动结束或闲置一小时。</p>
           )}
           {ready && entries.length === 0 && (
-            <p className="text-[#6b7280]">在下面输入命令，或让 AI 通过 CLI 操作——它的命令也会出现在这里。</p>
+            <p className="text-[#9ca3af]">在下面输入命令，或让 AI 通过 CLI 操作——它的命令也会出现在这里。</p>
           )}
           {entries.map((entry) => (
             <div key={entry.key} className="space-y-1">

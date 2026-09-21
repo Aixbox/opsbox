@@ -156,7 +156,7 @@ function toEntry(event: RedisConsoleEvent): ConsoleEntry {
     meta: (
       <span className="flex items-center gap-2">
         {event.status && <LogStatusChip status={event.status} />}
-        {event.durationMs ? <span className="text-[#6b7280]">{formatDuration(event.durationMs)}</span> : null}
+        {event.durationMs ? <span className="text-[#9ca3af]">{formatDuration(event.durationMs)}</span> : null}
       </span>
     ),
     error: event.error,

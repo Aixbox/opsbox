@@ -232,6 +232,19 @@
   --chip-bg: color-mix(in oklab, var(--default) 12%, transparent);
 }
 
+/* ---------------------------------------------------------------------------
+ * 深色控制台（console-shell 的 #0b0f19 输出区）里的 Chip 前景修正
+ *
+ * HeroUI soft/default Chip 的文字色来自 --default-soft-foreground →
+ * --default-foreground（eclipse 深色）：浅色页面上正常，放进深色控制台
+ * 就是「黑字近黑底」。仅限 .console-dark 作用域内提亮文字与底色；
+ * 语义色（success/warning/danger/accent）的前景本身够亮，不需要动。
+ * ------------------------------------------------------------------------- */
+.console-dark .chip--soft.chip--default {
+  --chip-fg: #e5e7eb;
+  --chip-bg: color-mix(in oklab, #94a3b8 16%, transparent);
+}
+
 /* 通知徽标同样使用 12% 的 danger 底色，同时保留语义色文字。 */
 .semantic-status-badge.badge--soft.badge--danger {
   --badge-bg: color-mix(in oklab, var(--danger) 12%, transparent);
