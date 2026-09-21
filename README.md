@@ -100,10 +100,11 @@ audit / approve 双模式、一次性 WebSocket 票据、命令输出加密落�
 ### 开发
 
 ```bash
-# 前端（frontend/）
+# 前端（frontend/）：先 cd 进目录，根目录的 package.json 是占位文件，没有 dev 脚本
+cd frontend
 pnpm install && pnpm dev        # 走 vite 代理连 127.0.0.1:37421
-# 整体（根目录）
-wails dev                       # Go + 前端热更新
+# 整体（根目录）：自动 npm install 前端并起 Go + 前端热更新
+wails dev
 wails build                     # 出包 build/bin/opsbox.exe（Windows）
 ```
 

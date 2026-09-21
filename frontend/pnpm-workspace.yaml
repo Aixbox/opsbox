@@ -1,0 +1,9 @@
+# pnpm v10+ 默认拦截依赖的 postinstall 构建脚本；这里放行带原生二进制的两个包。
+# pnpm 12 读 allowBuilds；pnpm 10/11 读 onlyBuiltDependencies（两份并存，互不干扰）。
+allowBuilds:
+  "@tailwindcss/oxide": true
+  esbuild: true
+
+onlyBuiltDependencies:
+  - "@tailwindcss/oxide"
+  - esbuild
