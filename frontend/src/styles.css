@@ -23,9 +23,34 @@
 :root {
   view-transition-name: root;
 
+  /* 顶部标题栏高度（title-bar.tsx 的 h-11 引用此变量，单一数据源）。
+   * 弹层（抽屉/弹窗/确认框）从标题栏下缘开始铺开，不再遮挡窗口控制与「设置/AI CLI」。 */
+  --titlebar-height: 2.75rem;
+
   /* 导航与标签栏提示需要快速反馈，避免沿用 HeroUI 默认的 1500ms/500ms 延迟。 */
   --tooltip-delay: 200ms;
   --tooltip-close-delay: 50ms;
+}
+
+/* ---------------------------------------------------------------------------
+ * 弹层避让顶部标题栏
+ *
+ * HeroUI 的遮罩/容器都是 fixed inset-0 + h-(--visual-viewport-height) 全屏铺开，
+ * 会盖住自定义标题栏（含最小化/最大化/关闭和「设置 / AI CLI」按钮）。
+ * 这里把遮罩与定位容器的上缘移到标题栏下、高度同步减去标题栏：
+ * - drawer 的 backdrop/content、modal 与 alert-dialog 的 backdrop 是 fixed 定位；
+ * - modal/alert-dialog 的 container 在 backdrop 内部居中，自身也带全屏高度，一并缩减；
+ * - scroll-outside 模式的 container 是 h-auto + min-h 全屏（backdrop 才是滚动容器），
+ *   覆盖为 height:auto + 缩减后的 min-height，避免内容被裁切。
+ * ------------------------------------------------------------------------- */
+:is(.drawer__backdrop, .drawer__content, .modal__backdrop, .modal__container, .alert-dialog__backdrop, .alert-dialog__container) {
+  top: var(--titlebar-height);
+  height: calc(var(--visual-viewport-height) - var(--titlebar-height));
+}
+
+:is(.modal__container--scroll-outside, .alert-dialog__container--scroll-outside) {
+  height: auto;
+  min-height: calc(var(--visual-viewport-height) - var(--titlebar-height));
 }
 
 @custom-variant dark (&:is(.dark *));

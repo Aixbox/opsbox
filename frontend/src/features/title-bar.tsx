@@ -42,7 +42,7 @@ export function TitleBar({ onOpenSettings, onOpenCli }: { onOpenSettings: () => 
   };
 
   return (
-    <header className="flex h-11 shrink-0 select-none items-stretch border-b border-separator">
+    <header className="flex h-(--titlebar-height) shrink-0 select-none items-stretch border-b border-separator">
       {/* 拖拽区只覆盖标题与空白，动作/控制按钮放在外面，避免点击被原生拖拽吞掉 */}
       <div
         className="flex min-w-0 flex-1 items-center gap-2.5 pl-4"
