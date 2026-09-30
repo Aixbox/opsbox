@@ -202,7 +202,7 @@ func (s *Service) DownloadChunk(ctx context.Context, userID, connectionID int64,
 		s.failTransfer(transferCtx, entry, total, err)
 		return TransferResult{}, entry, err
 	}
-	return s.advanceTransfer(transferCtx, entry, total, total >= size), entry, nil
+	return s.advanceTransfer(transferCtx, entry, total, total >= stat.Size), entry, nil
 }
 
 // StatRemote 返回远端文件大小与修改时间，供 CLI 决定从哪里续传。
