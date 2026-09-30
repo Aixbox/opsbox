@@ -391,13 +391,13 @@ func (h *Handler) statFile(c *gin.Context) {
 	response.JSON(c, http.StatusOK, "OK", "success", info)
 }
 
-// chunkParams 解析分片参数：transferId / offset / final。
+// chunkParams 解析分片参数：transferId / offset / final / expectedModTime。
 func chunkParams(c *gin.Context) (TransferChunk, bool) {
 	chunk := TransferChunk{Path: c.Query("path"), Final: c.Query("final") == "true"}
 	for _, item := range []struct {
 		name   string
 		target *int64
-	}{{"transferId", &chunk.TransferID}, {"offset", &chunk.Offset}} {
+	}{{"transferId", &chunk.TransferID}, {"offset", &chunk.Offset}, {"expectedModTime", &chunk.ExpectedModTime}} {
 		raw := c.Query(item.name)
 		if raw == "" {
 			continue

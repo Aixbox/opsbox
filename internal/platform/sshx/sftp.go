@@ -40,6 +40,12 @@ func UploadAt(ctx context.Context, client *Client, remotePath string, offset int
 	if err != nil {
 		return written, fmt.Errorf("写入远端文件失败: %w", err)
 	}
+	// 续传时写完需要截断：防止新文件比旧文件短时，旧尾巴残留
+	if offset > 0 {
+		if err := file.Truncate(offset + written); err != nil {
+			return written, fmt.Errorf("截断远端文件失败: %w", err)
+		}
+	}
 	return written, nil
 }
 
@@ -70,25 +76,40 @@ func DownloadAt(ctx context.Context, client *Client, remotePath string, offset i
 	return copied, nil
 }
 
+// FileStat 是远端文件的元信息。
+type FileStat struct {
+	Size    int64
+	ModTime int64 // Unix 毫秒时间戳
+}
+
 // StatSize 返回远端文件大小；不存在返回 (0, false, nil)，是目录则报错。
 // 续传前用它确认远端已有多少字节。
 func StatSize(client *Client, remotePath string) (int64, bool, error) {
+	stat, exists, err := Stat(client, remotePath)
+	if err != nil || !exists {
+		return 0, exists, err
+	}
+	return stat.Size, true, nil
+}
+
+// Stat 返回远端文件的完整元信息（大小与修改时间）；不存在返回 (FileStat{}, false, nil)，是目录则报错。
+func Stat(client *Client, remotePath string) (FileStat, bool, error) {
 	sftpClient, err := sftp.NewClient(client.Client)
 	if err != nil {
-		return 0, false, fmt.Errorf("打开 SFTP 通道失败: %w", err)
+		return FileStat{}, false, fmt.Errorf("打开 SFTP 通道失败: %w", err)
 	}
 	defer sftpClient.Close()
 	info, err := sftpClient.Stat(remotePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return 0, false, nil
+			return FileStat{}, false, nil
 		}
-		return 0, false, fmt.Errorf("读取远端文件信息失败: %w", err)
+		return FileStat{}, false, fmt.Errorf("读取远端文件信息失败: %w", err)
 	}
 	if info.IsDir() {
-		return 0, false, fmt.Errorf("远端路径 %s 是目录", remotePath)
+		return FileStat{}, false, fmt.Errorf("远端路径 %s 是目录", remotePath)
 	}
-	return info.Size(), true, nil
+	return FileStat{Size: info.Size(), ModTime: info.ModTime().UnixMilli()}, true, nil
 }
 
 // contextReader 让 io.Copy 能被 ctx 取消（sftp 本身不接受 ctx）。

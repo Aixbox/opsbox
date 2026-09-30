@@ -402,9 +402,10 @@ type transferResult struct {
 }
 
 type remoteStat struct {
-	Path   string `json:"path"`
-	Exists bool   `json:"exists"`
-	Size   int64  `json:"size"`
+	Path    string `json:"path"`
+	Exists  bool   `json:"exists"`
+	Size    int64  `json:"size"`
+	ModTime int64  `json:"modTime"` // Unix 毫秒时间戳
 }
 
 // registerTransfer 登记传输意图并在 approve 模式下等待批准；返回 transferId。
@@ -468,11 +469,19 @@ func uploadCommand() *cobra.Command {
 				return err
 			}
 			stderr := cmd.ErrOrStderr()
-			// 断点续传：远端已有的字节数就是起点（大小超过本地则视为异常文件，重头覆盖）
+			// 断点续传：远端已有且大小匹配前缀时续传；否则覆盖重传
 			offset := int64(0)
-			if stat, err := statRemote(ctx, client, conn, remotePath); err == nil && stat.Exists && stat.Size < info.Size() {
-				offset = stat.Size
-				fmt.Fprintf(stderr, "远端已有 %d 字节，从断点续传\n", offset)
+			var remoteModTime int64
+			if stat, err := statRemote(ctx, client, conn, remotePath); err == nil && stat.Exists {
+				if stat.Size > 0 && stat.Size < info.Size() {
+					// 远端文件比本地小：可能是上次中断的续传目标
+					offset = stat.Size
+					remoteModTime = stat.ModTime
+					fmt.Fprintf(stderr, "远端已有 %d 字节（修改时间 %s），从断点续传\n", offset, time.UnixMilli(stat.ModTime).Format(time.RFC3339))
+				} else if stat.Size >= info.Size() {
+					// 远端文件不小于本地：可能是旧文件，覆盖重传
+					fmt.Fprintf(stderr, "远端已有 %d 字节（≥本地 %d 字节），视为旧文件，覆盖重传\n", stat.Size, info.Size())
+				}
 			}
 			transferID, err := registerTransfer(ctx, client, conn, "upload", remotePath, info.Size(), wait, stderr)
 			if err != nil {
@@ -492,6 +501,9 @@ func uploadCommand() *cobra.Command {
 				}
 				if final {
 					query.Set("final", "true")
+				}
+				if remoteModTime > 0 {
+					query.Set("expectedModTime", strconv.FormatInt(remoteModTime, 10))
 				}
 				path := fmt.Sprintf("/api/v1/ssh/connections/%d/files?%s", conn.ID, query.Encode())
 				var result transferResult
@@ -552,11 +564,22 @@ func downloadCommand() *cobra.Command {
 			}
 			offset := int64(0)
 			flags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+			var localModTime int64
 			if resume {
 				if info, statErr := os.Stat(localPath); statErr == nil && info.Size() > 0 {
-					offset = info.Size()
-					flags = os.O_WRONLY | os.O_APPEND
-					fmt.Fprintf(cmd.ErrOrStderr(), "本地已有 %d 字节，从断点续传\n", offset)
+					// 先获取远端文件信息，校验本地文件是否匹配
+					if stat, err := statRemote(ctx, client, conn, remotePath); err == nil && stat.Exists {
+						if info.Size() < stat.Size {
+							// 本地比远端小，可能是上次中断的续传
+							offset = info.Size()
+							localModTime = info.ModTime().UnixMilli()
+							flags = os.O_WRONLY | os.O_APPEND
+							fmt.Fprintf(cmd.ErrOrStderr(), "本地已有 %d 字节（修改时间 %s），从断点续传\n", offset, info.ModTime().Format(time.RFC3339))
+						} else {
+							// 本地不小于远端，可能是旧文件或已完成，覆盖重下
+							fmt.Fprintf(cmd.ErrOrStderr(), "本地已有 %d 字节（≥远端 %d 字节），覆盖重下\n", info.Size(), stat.Size)
+						}
+					}
 				}
 			}
 			transferID, err := registerTransfer(ctx, client, conn, "download", remotePath, 0, wait, cmd.ErrOrStderr())
@@ -567,6 +590,9 @@ func downloadCommand() *cobra.Command {
 				"path":       {remotePath},
 				"transferId": {strconv.FormatInt(transferID, 10)},
 				"offset":     {strconv.FormatInt(offset, 10)},
+			}
+			if localModTime > 0 {
+				query.Set("expectedModTime", strconv.FormatInt(localModTime, 10))
 			}
 			response, err := client.Download(ctx, fmt.Sprintf("/api/v1/ssh/connections/%d/files?%s", conn.ID, query.Encode()))
 			if err != nil {

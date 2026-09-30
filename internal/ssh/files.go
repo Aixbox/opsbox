@@ -109,6 +109,9 @@ type TransferChunk struct {
 	Offset     int64
 	// Final 为 true 表示这是最后一片，写完即把传输记录收尾为 success。
 	Final bool
+	// ExpectedModTime 是续传时客户端期望的远端文件修改时间（UnixMilli）；
+	// >0 时服务端会校验，不匹配则拒绝续传（防止续写到旧文件上）。
+	ExpectedModTime int64
 }
 
 // TransferResult 是一次分片传输的结果。
@@ -134,6 +137,20 @@ func (s *Service) UploadChunk(ctx context.Context, userID, connectionID int64, c
 		return TransferResult{}, entry, err
 	}
 	defer client.Close()
+	// 续传校验：offset>0 且客户端给出了期望修改时间，则验证远端文件确实匹配
+	if chunk.Offset > 0 && chunk.ExpectedModTime > 0 {
+		stat, exists, statErr := sshx.Stat(client, chunk.Path)
+		if statErr != nil || !exists {
+			err := fmt.Errorf("续传前 stat 失败: %w", statErr)
+			s.failTransfer(transferCtx, entry, chunk.Offset, err)
+			return TransferResult{}, entry, err
+		}
+		if stat.ModTime != chunk.ExpectedModTime {
+			err := invalid(fmt.Sprintf("续传校验失败：远端文件已变化（期望修改时间 %d，实际 %d），拒绝续写", chunk.ExpectedModTime, stat.ModTime))
+			s.failTransfer(transferCtx, entry, chunk.Offset, err)
+			return TransferResult{}, entry, err
+		}
+	}
 	written, err := sshx.UploadAt(ctx, client, chunk.Path, chunk.Offset, body)
 	total := chunk.Offset + written
 	if err != nil {
@@ -157,7 +174,7 @@ func (s *Service) DownloadChunk(ctx context.Context, userID, connectionID int64,
 		return TransferResult{}, entry, err
 	}
 	defer client.Close()
-	size, exists, err := sshx.StatSize(client, chunk.Path)
+	stat, exists, err := sshx.Stat(client, chunk.Path)
 	if err != nil || !exists {
 		if err == nil {
 			err = fmt.Errorf("远端文件不存在: %s", chunk.Path)
@@ -165,12 +182,20 @@ func (s *Service) DownloadChunk(ctx context.Context, userID, connectionID int64,
 		s.failTransfer(transferCtx, entry, 0, err)
 		return TransferResult{}, entry, err
 	}
-	if chunk.Offset > size {
-		err := invalid(fmt.Sprintf("续传偏移 %d 超出远端文件大小 %d", chunk.Offset, size))
+	if chunk.Offset > stat.Size {
+		err := invalid(fmt.Sprintf("续传偏移 %d 超出远端文件大小 %d", chunk.Offset, stat.Size))
 		s.failTransfer(transferCtx, entry, 0, err)
 		return TransferResult{}, entry, err
 	}
-	prepare(size)
+	// 续传校验：offset>0 且客户端给出了期望修改时间（本地文件的），校验本地确实比远端旧
+	if chunk.Offset > 0 && chunk.ExpectedModTime > 0 {
+		if chunk.ExpectedModTime >= stat.ModTime {
+			err := invalid(fmt.Sprintf("续传校验失败：本地文件修改时间 %d ≥ 远端 %d，可能已是最新或更新版本，拒绝续传", chunk.ExpectedModTime, stat.ModTime))
+			s.failTransfer(transferCtx, entry, 0, err)
+			return TransferResult{}, entry, err
+		}
+	}
+	prepare(stat.Size)
 	read, err := sshx.DownloadAt(ctx, client, chunk.Path, chunk.Offset, writer)
 	total := chunk.Offset + read
 	if err != nil {
@@ -180,7 +205,7 @@ func (s *Service) DownloadChunk(ctx context.Context, userID, connectionID int64,
 	return s.advanceTransfer(transferCtx, entry, total, total >= size), entry, nil
 }
 
-// StatRemote 返回远端文件大小，供 CLI 决定从哪里续传。
+// StatRemote 返回远端文件大小与修改时间，供 CLI 决定从哪里续传。
 func (s *Service) StatRemote(ctx context.Context, userID, connectionID int64, remotePath string) (map[string]any, error) {
 	remotePath = strings.TrimSpace(remotePath)
 	if remotePath == "" {
@@ -196,11 +221,11 @@ func (s *Service) StatRemote(ctx context.Context, userID, connectionID int64, re
 		return nil, err
 	}
 	defer client.Close()
-	size, exists, err := sshx.StatSize(client, remotePath)
+	stat, exists, err := sshx.Stat(client, remotePath)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"path": remotePath, "exists": exists, "size": size}, nil
+	return map[string]any{"path": remotePath, "exists": exists, "size": stat.Size, "modTime": stat.ModTime}, nil
 }
 
 // prepareChunk 登记（或认领）传输记录，返回可写入的记录；status=pending 表示需等待批准。
